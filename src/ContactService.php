@@ -123,11 +123,12 @@ class ContactService
     /**
      * Send the processed data to the webhook.
      *
-     * @param array $data
+     * @param array $data The processed data of the form to send.
+     * @param array $meta The meta data of the form to send.
      * @return array
      * @throws Exception
      */
-    public function sendToWebhook(array $data): array
+    public function sendToWebhook(array $data, array $meta = []): array
     {
         if (!$this->webhookUrl) {
             throw new Exception('Webhook URL is not configured.');
@@ -135,7 +136,7 @@ class ContactService
 
         $this->validateCaptcha($data);
 
-        return $this->sendMessage($data);
+        return $this->sendMessage($data, $meta);
     }
 
     /**
@@ -168,26 +169,27 @@ class ContactService
     /**
      * Send the message of the form using the webhook.
      *
-     * @param array $data
+     * @param array $data The processed data of the form to send.
+     * @param array $meta The meta data of the form to send.
      * @return array
      * @throws Exception
      */
-    private function sendMessage(array $data): array
+    private function sendMessage(array $data, array $meta = []): array
     {
         // Initialize the client Guzzle.
         $client = new Client();
 
         // Build the payload.
         $payload = [
-            'meta' => [
-                'app' =>
-                    $this->parameterBag->get('form.contact.app')
+            'meta' => array_merge([
+                'source' =>
+                    $this->parameterBag->get('form.contact.source')
                     ?? $this->parameterBag->get('kernel.context')['URL_HOST']
-                    ?? throw new Exception('Parameter form.contact.app is not configured.')
+                    ?? throw new Exception('Parameter form.contact.source is not configured.')
                 ,
-                'form' => $this->parameterBag->get('form.contact.id'),
+                'form' => 'contact',
                 'timestamp' => time(),
-            ],
+            ], $meta),
             'data' => $data,
         ];
 
