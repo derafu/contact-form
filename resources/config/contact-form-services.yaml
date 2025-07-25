@@ -1,7 +1,7 @@
 parameters:
 
     # Form configuration.
-    form.contact.app: null
+    form.contact.app: '%env(default::string:FORM_CONTACT_APP)%'
     form.contact.id: 'contact'
     form.contact.definition: '../resources/forms/contact-form.yaml'
 
