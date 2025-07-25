@@ -1,0 +1,41 @@
+{% extends 'layouts/default.html.twig' %}
+
+{% block title %}Contact Us{% endblock %}
+
+{% block content %}
+
+<twig:block-hero
+    size="small"
+    background="/img/contact/contact-hero.png"
+    :contentBackground="true"
+    title="Contact Us"
+    subtitle="We're here to help you. Please fill out the form below and we'll get back to you as soon as possible."
+/>
+
+<div class="my-5 container">
+    <div class="row">
+        <div class="col-md-8">
+            {% if error %}
+            <twig:block-alert class="mb-4" type="danger" content="{{ error }}" />
+            {% endif %}
+            {{ form_start(form, {'action': path('contact_submit')}) }}
+                {{ form_element(form.uiSchema, form) }}
+                {{ form_csrf(form) }}
+                {% if captchaSiteKey %}
+                    <div class="h-captcha mt-2 mb-4" data-sitekey="{{ captchaSiteKey }}"></div>
+                    <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+                {% endif %}
+                <button type="submit" class="btn btn-primary w-100">Send Message</button>
+            {{ form_end(form) }}
+        </div>
+        <div class="col-md-4">
+            <twig:block-box
+                title="How can we help you?"
+                content="Let's talk!"
+            />
+            <p>We value every conversation as a step towards fruitful collaboration. If you're interested in our services, have an idea for a project, or simply want to know more about what we do, please complete the contact form. Tell us about your needs and expectations, and our team will get in touch with you to explore how we can help you.</p>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

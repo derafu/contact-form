@@ -1,0 +1,11 @@
+contact:
+  path: /contact
+  handler: 'Derafu\ContactForm\ContactController::index'
+
+contact_submit:
+  path: /contact/submit
+  handler: 'Derafu\ContactForm\ContactController::submit'
+
+contact_success:
+  path: /contact/success
+  handler: 'Derafu\ContactForm\ContactController::success'

@@ -1,0 +1,67 @@
+schema:
+  type: object
+  properties:
+    name:
+      type: string
+      title: Your Name
+      minLength: 3
+      maxLength: 100
+    email:
+      type: string
+      title: Your Email
+      format: email
+      minLength: 3
+      maxLength: 80
+    telephone:
+      type: string
+      title: Your Telephone
+      format: tel
+      minLength: 10
+      maxLength: 15
+    company:
+      type: string
+      title: Your Company
+      minLength: 3
+      maxLength: 100
+    subject:
+      type: string
+      title: Resume your interest
+      minLength: 3
+      maxLength: 100
+    message:
+      type: string
+      title: Your Message
+      minLength: 10
+      maxLength: 1000
+  required:
+    - name
+    - email
+    - telephone
+    - company
+    - subject
+    - message
+
+uischema:
+  type: VerticalLayout
+  elements:
+    - type: Control
+      label: Your Name
+      scope: '#/properties/name'
+    - type: Control
+      label: Your Email
+      scope: '#/properties/email'
+    - type: Control
+      label: Your Telephone
+      scope: '#/properties/telephone'
+    - type: Control
+      label: Your Company
+      scope: '#/properties/company'
+    - type: Control
+      label: Resume your interest
+      scope: '#/properties/subject'
+    - type: Control
+      label: Your Message
+      scope: '#/properties/message'
+      options:
+        multi: true
+        widget_class: summernote-editor

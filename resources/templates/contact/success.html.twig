@@ -1,0 +1,27 @@
+{% extends 'layouts/default.html.twig' %}
+
+{% block title %}Message Sent{% endblock %}
+
+{% block content %}
+
+<twig:block-hero
+    size="small"
+    background="/img/contact/contact-hero.png"
+    :contentBackground="true"
+    title="Thank You!"
+    subtitle="Your message has been sent."
+/>
+
+<div class="my-5 container">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <p class="lead mb-4">
+                Thank you for reaching out.<br>
+                Our team appreciates your interest and will contact you soon.
+            </p>
+            <a href="{{ path('homepage') }}" class="btn btn-primary mt-3">Back to Home</a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,25 @@
+parameters:
+
+    # Form configuration.
+    form.contact.app: null
+    form.contact.id: 'contact'
+    form.contact.definition: '../resources/forms/contact-form.yaml'
+
+    # Captcha configuration.
+    captcha.site_key: '%env(default::string:CAPTCHA_SITE_KEY)%'
+    captcha.secret_key: '%env(default::string:CAPTCHA_SECRET_KEY)%'
+
+    # Webhook configuration.
+    form.contact.webhook.url: '%env(default::string:FORM_CONTACT_WEBHOOK_URL)%'
+    form.contact.webhook.secret_key: '%env(default::string:FORM_CONTACT_WEBHOOK_SECRET_KEY)%'
+
+services:
+
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: true
+
+    Derafu\ContactForm\ContactController: ~
+
+    Derafu\ContactForm\ContactService: ~
