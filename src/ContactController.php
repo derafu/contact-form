@@ -23,6 +23,34 @@ use Exception;
 class ContactController
 {
     /**
+     * Form definition for the contact form.
+     *
+     * @var string
+     */
+    protected const FORM_DEFINITION = __DIR__ . '/../resources/forms/contact-form.yaml';
+
+    /**
+     * Template for the contact form.
+     *
+     * @var string
+     */
+    protected const TEMPLATE_INDEX = 'contact/index.html.twig';
+
+    /**
+     * Template for the contact form success page.
+     *
+     * @var string
+     */
+    protected const TEMPLATE_SUCCESS = 'contact/success.html.twig';
+
+    /**
+     * URI for the contact form success page.
+     *
+     * @var string
+     */
+    protected const URI_SUCCESS = '/contact/success';
+
+    /**
      * Constructor.
      *
      * @param RendererInterface $renderer
@@ -41,9 +69,9 @@ class ContactController
      */
     public function index(): string
     {
-        return $this->renderer->render('contact/index.html.twig', [
+        return $this->renderer->render(static::TEMPLATE_INDEX, [
             'captchaSiteKey' => $this->contactService->getCaptchaSiteKey(),
-            'form' => $this->contactService->createForm(),
+            'form' => $this->contactService->createForm(static::FORM_DEFINITION),
         ]);
     }
 
@@ -54,13 +82,15 @@ class ContactController
      */
     public function submit(): string|ResponseInterface
     {
+        $form = $this->contactService->createForm(static::FORM_DEFINITION);
+
         try {
-            $result = $this->contactService->process();
+            $result = $this->contactService->process($form);
 
             // If the form is not valid, return the view with the form and the
             // errors to be shown to the user.
             if (!$result->isValid()) {
-                return $this->renderer->render('contact/index.html.twig', [
+                return $this->renderer->render(static::TEMPLATE_INDEX, [
                     'captchaSiteKey' => $this->contactService->getCaptchaSiteKey(),
                     'form' => $result->getForm(),
                     'error' => $result->hasErrors()
@@ -71,14 +101,15 @@ class ContactController
             }
 
             // Send the message to the webhook.
-            $this->contactService->sendToWebhook($result->getProcessedData());
+            $meta = [];
+            $this->contactService->sendToWebhook($result->getProcessedData(), $meta);
 
             // Redirect to the success page.
-            return (new Response())->redirect('/contact/success');
+            return (new Response())->redirect(static::URI_SUCCESS);
         } catch (Exception $e) {
-            return $this->renderer->render('contact/index.html.twig', [
+            return $this->renderer->render(static::TEMPLATE_INDEX, [
                 'captchaSiteKey' => $this->contactService->getCaptchaSiteKey(),
-                'form' => $this->contactService->createForm(),
+                'form' => $form,
                 'error' => $e->getMessage(),
             ]);
         }
@@ -91,6 +122,6 @@ class ContactController
      */
     public function success(): string
     {
-        return $this->renderer->render('contact/success.html.twig');
+        return $this->renderer->render(static::TEMPLATE_SUCCESS);
     }
 }

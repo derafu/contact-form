@@ -2,7 +2,6 @@ parameters:
 
     # Form configuration.
     form.contact.source: '%env(default::string:FORM_CONTACT_SOURCE)%'
-    form.contact.definition: '../resources/forms/contact-form.yaml'
 
     # Webhook configuration.
     form.contact.webhook.url: '%env(default::string:FORM_CONTACT_WEBHOOK_URL)%'

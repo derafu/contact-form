@@ -29,27 +29,11 @@ use Symfony\Component\Yaml\Yaml;
 class ContactService
 {
     /**
-     * Form definition for the contact form.
+     * Default form definition for the contact form.
      *
-     * Syntax, similar to JSON Schema and JSON Forms, using Derafu Form.
-     *
-     * @var array
+     * @var string
      */
-    private array $formDefinition;
-
-    /**
-     * Captcha site key.
-     *
-     * @var string|null
-     */
-    private ?string $captchaSiteKey = null;
-
-    /**
-     * Captcha secret key.
-     *
-     * @var string|null
-     */
-    private ?string $captchaSecretKey = null;
+    protected const DEFAULT_FORM_DEFINITION = __DIR__ . '/../resources/forms/contact-form.yaml';
 
     /**
      * Webhook URL for processing the form.
@@ -66,6 +50,20 @@ class ContactService
     private ?string $webhookSecretKey = null;
 
     /**
+     * Captcha site key.
+     *
+     * @var string|null
+     */
+    private ?string $captchaSiteKey = null;
+
+    /**
+     * Captcha secret key.
+     *
+     * @var string|null
+     */
+    private ?string $captchaSecretKey = null;
+
+    /**
      * Constructor.
      *
      * @param FormFactoryInterface $formFactory
@@ -77,45 +75,46 @@ class ContactService
         private readonly FormDataProcessorInterface $formDataProcessor,
         private readonly ParameterBagInterface $parameterBag,
     ) {
-        // Load the form definition.
-        $formDefinition = $this->parameterBag->get('form.contact.definition');
-        if (is_string($formDefinition)) {
-            $this->formDefinition = Yaml::parseFile(
-                __DIR__ . '/' . $formDefinition
-            );
-        } else {
-            $this->formDefinition = $formDefinition;
-        }
-
-        // Load the captcha configuration.
-        $this->captchaSiteKey = $this->parameterBag->get('captcha.site_key');
-        $this->captchaSecretKey = $this->parameterBag->get('captcha.secret_key');
-
         // Load the webhook configuration.
         $this->webhookUrl = $this->parameterBag->get('form.contact.webhook.url');
         $this->webhookSecretKey = $this->parameterBag->get(
             'form.contact.webhook.secret_key'
         );
+
+        // Load the captcha configuration.
+        $this->captchaSiteKey = $this->parameterBag->get('captcha.site_key');
+        $this->captchaSecretKey = $this->parameterBag->get('captcha.secret_key');
     }
 
     /**
      * Create a new form instance.
      *
+     * @param string|array $formDefinition The form definition to use.
      * @return FormInterface
      */
-    public function createForm(): FormInterface
-    {
-        return $this->formFactory->create($this->formDefinition);
+    public function createForm(
+        string|array $formDefinition = self::DEFAULT_FORM_DEFINITION
+    ): FormInterface {
+        if (is_string($formDefinition)) {
+            $formDefinition = Yaml::parseFile($formDefinition);
+        }
+
+        return $this->formFactory->create($formDefinition);
     }
 
     /**
      * Process the form data.
      *
-     * @return ProcessResultInterface
+     * @param FormInterface|string|array $form The form definition to use.
+     * @return ProcessResultInterface The result of the form processing.
      */
-    public function process(): ProcessResultInterface
+    public function process(
+        FormInterface|string|array $form = self::DEFAULT_FORM_DEFINITION
+    ): ProcessResultInterface
     {
-        $form = $this->createForm();
+        if (!$form instanceof FormInterface) {
+            $form = $this->createForm($form);
+        }
 
         return $this->formDataProcessor->process($form);
     }
@@ -131,7 +130,7 @@ class ContactService
     public function sendToWebhook(array $data, array $meta = []): array
     {
         if (!$this->webhookUrl) {
-            throw new Exception('Webhook URL is not configured.');
+            throw new Exception('Webhook URL is not configured for the contact form.');
         }
 
         $this->validateCaptcha($data);

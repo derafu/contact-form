@@ -5,12 +5,12 @@ schema:
       type: string
       title: Your Name
       minLength: 3
-      maxLength: 100
+      maxLength: 50
     email:
       type: string
       title: Your Email
       format: email
-      minLength: 3
+      minLength: 5
       maxLength: 80
     telephone:
       type: string
@@ -22,17 +22,17 @@ schema:
       type: string
       title: Your Company
       minLength: 3
-      maxLength: 100
+      maxLength: 50
     subject:
       type: string
       title: Resume your interest
-      minLength: 3
+      minLength: 30
       maxLength: 100
     message:
       type: string
       title: Your Message
-      minLength: 10
-      maxLength: 1000
+      minLength: 160
+      maxLength: 2000
   required:
     - name
     - email
@@ -64,4 +64,4 @@ uischema:
       scope: '#/properties/message'
       options:
         multi: true
-        widget_class: summernote-editor
+        # widget_class: summernote-editor
