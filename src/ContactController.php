@@ -23,6 +23,13 @@ use Exception;
 class ContactController
 {
     /**
+     * Form type for the contact form.
+     *
+     * @var string
+     */
+    protected const FORM_TYPE = 'contact';
+
+    /**
      * Form definition for the contact form.
      *
      * @var string
@@ -101,7 +108,9 @@ class ContactController
             }
 
             // Send the message to the webhook.
-            $meta = [];
+            $meta = [
+                'form' => static::FORM_TYPE,
+            ];
             $this->contactService->sendToWebhook($result->getProcessedData(), $meta);
 
             // Redirect to the success page.
