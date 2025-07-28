@@ -110,8 +110,7 @@ class ContactService
      */
     public function process(
         FormInterface|string|array $form = self::DEFAULT_FORM_DEFINITION
-    ): ProcessResultInterface
-    {
+    ): ProcessResultInterface {
         if (!$form instanceof FormInterface) {
             $form = $this->createForm($form);
         }
