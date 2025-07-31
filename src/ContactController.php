@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace Derafu\ContactForm;
 
 use Derafu\Http\Contract\ResponseInterface;
+use Derafu\Http\Request;
 use Derafu\Http\Response;
 use Derafu\Renderer\Contract\RendererInterface;
 use Exception;
@@ -87,12 +88,13 @@ class ContactController
      *
      * @return string|ResponseInterface
      */
-    public function submit(): string|ResponseInterface
+    public function submit(Request $request): string|ResponseInterface
     {
         $form = $this->contactService->createForm(static::FORM_DEFINITION);
 
         try {
-            $result = $this->contactService->process($form);
+            $data = array_merge($request->all(), $request->files());
+            $result = $this->contactService->process($form, $data);
 
             // If the form is not valid, return the view with the form and the
             // errors to be shown to the user.

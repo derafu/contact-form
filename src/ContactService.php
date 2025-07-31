@@ -18,6 +18,7 @@ use Derafu\Form\Contract\Processor\FormDataProcessorInterface;
 use Derafu\Form\Contract\Processor\ProcessResultInterface;
 use Exception;
 use GuzzleHttp\Client;
+use Psr\Http\Message\UploadedFileInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\Yaml\Yaml;
 
@@ -109,13 +110,14 @@ class ContactService
      * @return ProcessResultInterface The result of the form processing.
      */
     public function process(
-        FormInterface|string|array $form = self::DEFAULT_FORM_DEFINITION
+        FormInterface|string|array $form = self::DEFAULT_FORM_DEFINITION,
+        array $data = []
     ): ProcessResultInterface {
         if (!$form instanceof FormInterface) {
             $form = $this->createForm($form);
         }
 
-        return $this->formDataProcessor->process($form);
+        return $this->formDataProcessor->process($form, $data);
     }
 
     /**
@@ -133,6 +135,8 @@ class ContactService
         }
 
         $this->validateCaptcha($data);
+
+        $data = $this->serializeUploadedFiles($data);
 
         return $this->sendMessage($data, $meta);
     }
@@ -215,5 +219,41 @@ class ContactService
                 $e->getMessage()
             ));
         }
+    }
+
+    /**
+     * Serialize the uploaded files.
+     *
+     * @param mixed $data
+     * @return array
+     */
+    private function serializeUploadedFiles(mixed $data): array
+    {
+        $walk = function ($item) use (&$walk) {
+            if ($item instanceof UploadedFileInterface) {
+                if ($item->getError() !== UPLOAD_ERR_OK) {
+                    return null;
+                }
+
+                return [
+                    'filename' => $item->getClientFilename(),
+                    'media_type' => $item->getClientMediaType(),
+                    'size' => $item->getSize(),
+                    'content' => base64_encode((string) $item->getStream()),
+                ];
+            }
+
+            if (is_array($item)) {
+                $mapped = [];
+                foreach ($item as $k => $v) {
+                    $mapped[$k] = $walk($v);
+                }
+                return $mapped;
+            }
+
+            return $item;
+        };
+
+        return $walk($data);
     }
 }
