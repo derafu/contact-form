@@ -75,11 +75,14 @@ class ContactController
      *
      * @return string
      */
-    public function index(): string
+    public function index(Request $request): string
     {
         return $this->renderer->render(static::TEMPLATE_INDEX, [
             'captchaSiteKey' => $this->contactService->getCaptchaSiteKey(),
-            'form' => $this->contactService->createForm(static::FORM_DEFINITION),
+            'form' => $this->contactService->createForm(
+                static::FORM_DEFINITION,
+                $request->all()
+            ),
         ]);
     }
 

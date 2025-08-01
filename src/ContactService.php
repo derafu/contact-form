@@ -91,13 +91,19 @@ class ContactService
      * Create a new form instance.
      *
      * @param string|array $formDefinition The form definition to use.
+     * @param array $data The data to use for the form.
      * @return FormInterface
      */
     public function createForm(
-        string|array $formDefinition = self::DEFAULT_FORM_DEFINITION
+        string|array $formDefinition = self::DEFAULT_FORM_DEFINITION,
+        array $data = []
     ): FormInterface {
         if (is_string($formDefinition)) {
             $formDefinition = Yaml::parseFile($formDefinition);
+        }
+
+        if (!empty($data)) {
+            $formDefinition['data'] = $data;
         }
 
         return $this->formFactory->create($formDefinition);
