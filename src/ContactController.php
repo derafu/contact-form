@@ -16,13 +16,24 @@ use Derafu\Http\Contract\ResponseInterface;
 use Derafu\Http\Request;
 use Derafu\Http\Response;
 use Derafu\Renderer\Contract\RendererInterface;
+use Derafu\Translation\Contract\TranslatableInterface;
+use Derafu\Translation\TranslatableMessage;
 use Exception;
+use Symfony\Contracts\Translation\TranslatorInterface;
+use Throwable;
 
 /**
  * Controller for the contact form.
  */
 class ContactController
 {
+    /**
+     * Translation domain for this package's own UI strings.
+     *
+     * @var string
+     */
+    protected const DOMAIN = 'contact-form+intl-icu';
+
     /**
      * Form type for the contact form.
      *
@@ -63,10 +74,16 @@ class ContactController
      *
      * @param RendererInterface $renderer
      * @param ContactService $contactService
+     * @param TranslatorInterface|null $translator The translator to use, or
+     * `null` to fall back to ICU formatting without translation.
+     * @param string|null $locale The locale to translate to, or `null` to
+     * use the translator's default.
      */
     public function __construct(
         private readonly RendererInterface $renderer,
         private readonly ContactService $contactService,
+        private readonly ?TranslatorInterface $translator = null,
+        private readonly ?string $locale = null,
     ) {
     }
 
@@ -106,7 +123,7 @@ class ContactController
                     'captchaSiteKey' => $this->contactService->getCaptchaSiteKey(),
                     'form' => $result->getForm(),
                     'error' => $result->hasErrors()
-                        ? 'There were errors in the form. Please fix them and try again.'
+                        ? $this->trans('There were errors in the form. Please fix them and try again.')
                         : null
                     ,
                 ]);
@@ -124,9 +141,49 @@ class ContactController
             return $this->renderer->render(static::TEMPLATE_INDEX, [
                 'captchaSiteKey' => $this->contactService->getCaptchaSiteKey(),
                 'form' => $form,
-                'error' => $e->getMessage(),
+                'error' => $this->transThrowable($e),
             ]);
         }
+    }
+
+    /**
+     * Translates a message using this package's own domain.
+     *
+     * @param string $message The message to translate.
+     * @param array<string, mixed> $parameters Parameters for translation
+     * placeholders.
+     * @return string The translated message.
+     */
+    private function trans(string $message, array $parameters = []): string
+    {
+        $translatable = new TranslatableMessage(
+            $message,
+            $parameters,
+            static::DOMAIN,
+            $this->locale
+        );
+
+        if ($this->translator === null) {
+            return (string) $translatable;
+        }
+
+        return $translatable->trans($this->translator, $this->locale);
+    }
+
+    /**
+     * Translates a caught throwable's message, when possible.
+     *
+     * @param Throwable $e The throwable to translate.
+     * @return string The translated message, or the throwable's own message
+     * when there is no translator or it is not translatable.
+     */
+    private function transThrowable(Throwable $e): string
+    {
+        if ($this->translator !== null && $e instanceof TranslatableInterface) {
+            return $e->trans($this->translator, $this->locale);
+        }
+
+        return $e->getMessage();
     }
 
     /**

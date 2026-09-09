@@ -29,13 +29,14 @@
         "derafu/http": "dev-main",
         "derafu/form": "dev-main",
         "derafu/data-processor": "dev-main",
+        "derafu/translation": "dev-main",
         "guzzlehttp/guzzle": "^7.10"
     },
     "require-dev": {
         "ext-xdebug": "*",
-        "friendsofphp/php-cs-fixer": "^3.94",
-        "phpstan/phpstan": "^1.12",
-        "phpunit/phpunit": "^11.5"
+        "friendsofphp/php-cs-fixer": "^3.95",
+        "phpstan/phpstan": "^2.2",
+        "phpunit/phpunit": "^13.3"
     },
     "scripts": {
         "docs": "php tools/phpdocumentor run --config=phpdoc.xml",

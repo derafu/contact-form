@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace Derafu\ContactForm;
 
+use Derafu\ContactForm\Exception\ContactFormException;
 use Derafu\Form\Contract\Factory\FormFactoryInterface;
 use Derafu\Form\Contract\FormInterface;
 use Derafu\Form\Contract\Processor\FormDataProcessorInterface;
@@ -132,12 +133,14 @@ class ContactService
      * @param array $data The processed data of the form to send.
      * @param array $meta The meta data of the form to send.
      * @return array
-     * @throws Exception
+     * @throws ContactFormException
      */
     public function sendToWebhook(array $data, array $meta = []): array
     {
         if (!$this->webhookUrl) {
-            throw new Exception('Webhook URL is not configured for the contact form.');
+            throw new ContactFormException(
+                'Webhook URL is not configured for the contact form.'
+            );
         }
 
         $this->validateCaptcha($data);
@@ -172,6 +175,7 @@ class ContactService
 
         // Validate the captcha.
         // TODO: Implement captcha validation and throw an exception if it fails.
+        throw new ContactFormException('Captcha validation not implemented.');
     }
 
     /**
@@ -180,7 +184,7 @@ class ContactService
      * @param array $data The processed data of the form to send.
      * @param array $meta The meta data of the form to send.
      * @return array
-     * @throws Exception
+     * @throws ContactFormException
      */
     private function sendMessage(array $data, array $meta = []): array
     {
@@ -193,7 +197,9 @@ class ContactService
                 'source' =>
                     $this->parameterBag->get('form.contact.source')
                     ?? $this->parameterBag->get('kernel.context')['URL_HOST']
-                    ?? throw new Exception('Parameter form.contact.source is not configured.')
+                    ?? throw new ContactFormException(
+                        'Parameter form.contact.source is not configured.'
+                    )
                 ,
                 'form' => 'contact',
                 'timestamp' => time(),
@@ -220,10 +226,10 @@ class ContactService
 
             return json_decode($response->getBody()->getContents(), true);
         } catch (Exception $e) {
-            throw new Exception(sprintf(
-                'Error sending the message: %s',
-                $e->getMessage()
-            ));
+            throw new ContactFormException([
+                'Error sending the message: {reason}.',
+                'reason' => $e->getMessage(),
+            ], $e);
         }
     }
 

@@ -1,6 +1,7 @@
 {% extends 'layouts/default.html.twig' %}
+{% trans_default_domain 'contact-form+intl-icu' %}
 
-{% block title %}Contact Us{% endblock %}
+{% block title %}{{ 'Contact Us'|trans }}{% endblock %}
 
 {% block content %}
 
@@ -8,8 +9,8 @@
     size="small"
     background="/img/contact/contact-hero.png"
     :contentBackground="true"
-    title="Contact Us"
-    subtitle="We're here to help you. Please fill out the form below and we'll get back to you as soon as possible."
+    title="{{ 'Contact Us'|trans }}"
+    subtitle="{{ "We're here to help you. Please fill out the form below and we'll get back to you as soon as possible."|trans }}"
 />
 
 <div class="my-5 container">
@@ -25,15 +26,15 @@
                     <div class="h-captcha mt-2 mb-4" data-sitekey="{{ captchaSiteKey }}"></div>
                     <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
                 {% endif %}
-                <button type="submit" class="btn btn-primary w-100">Send Message</button>
+                <button type="submit" class="btn btn-primary w-100">{{ 'Send Message'|trans }}</button>
             {{ form_end(form) }}
         </div>
         <div class="col-md-4">
             <twig:block-box
-                title="How can we help you?"
-                content="Let's talk!"
+                title="{{ 'How can we help you?'|trans }}"
+                content="{{ "Let's talk!"|trans }}"
             />
-            <p>We value every conversation as a step towards fruitful collaboration. If you're interested in our services, have an idea for a project, or simply want to know more about what we do, please complete the contact form. Tell us about your needs and expectations, and our team will get in touch with you to explore how we can help you.</p>
+            <p>{{ "We value every conversation as a step towards fruitful collaboration. If you're interested in our services, have an idea for a project, or simply want to know more about what we do, please complete the contact form. Tell us about your needs and expectations, and our team will get in touch with you to explore how we can help you."|trans }}</p>
         </div>
     </div>
 </div>

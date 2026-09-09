@@ -21,3 +21,11 @@ services:
     Derafu\ContactForm\ContactController: ~
 
     Derafu\ContactForm\ContactService: ~
+
+    # Feeds resources/translations into the consuming app's Translator (the
+    # app must pass $resourceProviders: !tagged_iterator
+    # derafu_translation.resource_provider to TranslatorFactory::create(),
+    # see derafu/translation's translation-services.yaml). The tag is
+    # explicit because _instanceof does not propagate across imported files.
+    Derafu\ContactForm\Translation\ContactFormTranslationResourceProvider:
+        tags: ['derafu_translation.resource_provider']
