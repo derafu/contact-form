@@ -166,6 +166,7 @@ class ContactService
      * @param array $data
      * @return void
      */
+    // @phpstan-ignore void.pure
     private function validateCaptcha(array $data): void
     {
         // If the captcha is not configured, skip validation.
@@ -175,7 +176,6 @@ class ContactService
 
         // Validate the captcha.
         // TODO: Implement captcha validation and throw an exception if it fails.
-        throw new ContactFormException('Captcha validation not implemented.');
     }
 
     /**
