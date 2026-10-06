@@ -1,3 +1,5 @@
+translationDomain: contact-form
+
 schema:
   type: object
   properties:

@@ -33,4 +33,12 @@ return [
     'Our team appreciates your interest and will contact you soon.' =>
         'Nuestro equipo agradece tu interés y se pondrá en contacto contigo pronto.',
     'Back to Home' => 'Volver al Inicio',
+
+    // forms/contact-form.yaml.
+    'Your Name' => 'Tu nombre',
+    'Your Email' => 'Tu correo electrónico',
+    'Your Telephone' => 'Tu teléfono',
+    'Your Company' => 'Tu empresa',
+    'Resume your interest' => 'Resume tu interés',
+    'Your Message' => 'Tu mensaje',
 ];

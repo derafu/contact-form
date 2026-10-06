@@ -14,19 +14,24 @@ namespace Derafu\TestsContactForm;
 
 use Derafu\ContactForm\ContactService;
 use Derafu\ContactForm\Exception\ContactFormException;
+use Derafu\ContactForm\Translation\ContactFormTranslationResourceProvider;
 use Derafu\DataProcessor\ProcessorFactory;
+use Derafu\Form\Contract\Factory\FormFactoryInterface;
 use Derafu\Form\Factory\FormFactory;
+use Derafu\Form\Factory\TranslatingFormFactory;
 use Derafu\Form\Processor\FormDataProcessor;
 use Derafu\Form\Processor\FormRulesResolver;
 use Derafu\Form\Type\TypeProvider;
 use Derafu\Form\Type\TypeRegistry;
 use Derafu\Form\Type\TypeResolver;
+use Derafu\Translation\TranslatorFactory;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\HttpFactory;
 use GuzzleHttp\Psr7\UploadedFile;
 use GuzzleHttp\Psr7\Utils;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Client\ClientExceptionInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
@@ -38,6 +43,7 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
  */
 #[CoversClass(ContactService::class)]
 #[CoversClass(ContactFormException::class)]
+#[UsesClass(ContactFormTranslationResourceProvider::class)]
 final class ContactServiceTest extends TestCase
 {
     private const SECRET = 'a-secret-key';
@@ -102,10 +108,10 @@ final class ContactServiceTest extends TestCase
     /**
      * @param array<string, mixed> $parameters
      */
-    private function service(array $parameters = []): ContactService
+    private function service(array $parameters = [], ?FormFactoryInterface $formFactory = null): ContactService
     {
         return new ContactService(
-            new FormFactory(new TypeResolver(new TypeRegistry(new TypeProvider()))),
+            $formFactory ?? new FormFactory(new TypeResolver(new TypeRegistry(new TypeProvider()))),
             new FormDataProcessor(new FormRulesResolver(), (new ProcessorFactory())->create()),
             new ParameterBag($parameters + [
                 'form.contact.webhook.url' => 'http://127.0.0.1:' . self::$port . '/ok',
@@ -152,6 +158,35 @@ final class ContactServiceTest extends TestCase
 
         $this->assertNotNull($form->getField('email'));
         $this->assertSame('Ana', $form->getField('name')->getData());
+    }
+
+    /**
+     * The form of the package says in which domain its texts are, so a factory
+     * that translates gives it in the language of the translator.
+     */
+    #[Test]
+    public function createsTheDefaultFormTranslated(): void
+    {
+        $translator = TranslatorFactory::create('es', ['en'], [new ContactFormTranslationResourceProvider()]);
+        $service = $this->service(
+            formFactory: new TranslatingFormFactory(
+                new FormFactory(new TypeResolver(new TypeRegistry(new TypeProvider()))),
+                $translator
+            )
+        );
+
+        $form = $service->createForm()->toArray();
+
+        $this->assertSame('Tu nombre', $form['schema']['properties']['name']['title']);
+        $this->assertSame('Tu mensaje', $form['schema']['properties']['message']['title']);
+        $this->assertSame('Tu correo electrónico', $form['uischema']['elements'][1]['label']);
+
+        // In English, the texts as they were written.
+        $translator->setLocale('en');
+        $this->assertSame(
+            'Your Name',
+            $service->createForm()->toArray()['schema']['properties']['name']['title']
+        );
     }
 
     #[Test]
