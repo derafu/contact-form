@@ -95,7 +95,6 @@ class ContactController
     public function index(Request $request): string
     {
         return $this->renderer->render(static::TEMPLATE_INDEX, [
-            'captchaSiteKey' => $this->contactService->getCaptchaSiteKey(),
             'form' => $this->contactService->createForm(
                 static::FORM_DEFINITION,
                 $request->all()
@@ -120,7 +119,6 @@ class ContactController
             // errors to be shown to the user.
             if (!$result->isValid()) {
                 return $this->renderer->render(static::TEMPLATE_INDEX, [
-                    'captchaSiteKey' => $this->contactService->getCaptchaSiteKey(),
                     'form' => $result->getForm(),
                     'error' => $result->hasErrors()
                         ? $this->trans('There were errors in the form. Please fix them and try again.')
@@ -139,7 +137,6 @@ class ContactController
             return (new Response())->redirect(static::URI_SUCCESS);
         } catch (Exception $e) {
             return $this->renderer->render(static::TEMPLATE_INDEX, [
-                'captchaSiteKey' => $this->contactService->getCaptchaSiteKey(),
                 'form' => $form,
                 'error' => $this->transThrowable($e),
             ]);

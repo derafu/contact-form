@@ -7,10 +7,6 @@ parameters:
     form.contact.webhook.url: '%env(default::string:FORM_CONTACT_WEBHOOK_URL)%'
     form.contact.webhook.secret_key: '%env(default::string:FORM_CONTACT_WEBHOOK_SECRET_KEY)%'
 
-    # Captcha configuration.
-    captcha.site_key: '%env(default::string:CAPTCHA_SITE_KEY)%'
-    captcha.secret_key: '%env(default::string:CAPTCHA_SECRET_KEY)%'
-
 services:
 
     _defaults:

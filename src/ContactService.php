@@ -52,20 +52,6 @@ class ContactService
     private ?string $webhookSecretKey = null;
 
     /**
-     * Captcha site key.
-     *
-     * @var string|null
-     */
-    private ?string $captchaSiteKey = null;
-
-    /**
-     * Captcha secret key.
-     *
-     * @var string|null
-     */
-    private ?string $captchaSecretKey = null;
-
-    /**
      * Constructor.
      *
      * @param FormFactoryInterface $formFactory
@@ -82,10 +68,6 @@ class ContactService
         $this->webhookSecretKey = $this->parameterBag->get(
             'form.contact.webhook.secret_key'
         );
-
-        // Load the captcha configuration.
-        $this->captchaSiteKey = $this->parameterBag->get('captcha.site_key');
-        $this->captchaSecretKey = $this->parameterBag->get('captcha.secret_key');
     }
 
     /**
@@ -143,39 +125,9 @@ class ContactService
             );
         }
 
-        $this->validateCaptcha($data);
-
         $data = $this->serializeUploadedFiles($data);
 
         return $this->sendMessage($data, $meta);
-    }
-
-    /**
-     * Get the captcha site key.
-     *
-     * @return string|null
-     */
-    public function getCaptchaSiteKey(): ?string
-    {
-        return $this->captchaSiteKey;
-    }
-
-    /**
-     * Validate the captcha.
-     *
-     * @param array $data
-     * @return void
-     */
-    // @phpstan-ignore void.pure
-    private function validateCaptcha(array $data): void
-    {
-        // If the captcha is not configured, skip validation.
-        if (!$this->captchaSiteKey || !$this->captchaSecretKey) {
-            return;
-        }
-
-        // Validate the captcha.
-        // TODO: Implement captcha validation and throw an exception if it fails.
     }
 
     /**

@@ -22,10 +22,6 @@
             {{ form_start(form, {'action': path('contact_submit')}) }}
                 {{ form_element(form.uiSchema, form) }}
                 {{ form_csrf(form) }}
-                {% if captchaSiteKey %}
-                    <div class="h-captcha mt-2 mb-4" data-sitekey="{{ captchaSiteKey }}"></div>
-                    <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
-                {% endif %}
                 <button type="submit" class="btn btn-primary w-100">{{ 'Send Message'|trans }}</button>
             {{ form_end(form) }}
         </div>
