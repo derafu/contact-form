@@ -30,17 +30,21 @@
         "derafu/form": "dev-main",
         "derafu/data-processor": "dev-main",
         "derafu/translation": "dev-main",
-        "guzzlehttp/guzzle": "^7.10"
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0",
+        "psr/http-message": "^2.0"
     },
     "require-dev": {
         "ext-xdebug": "*",
         "friendsofphp/php-cs-fixer": "^3.95",
+        "guzzlehttp/guzzle": "^7.10",
         "phpstan/phpstan": "^2.2",
         "phpunit/phpunit": "^13.4",
         "nikic/php-parser": "^5.9"
     },
     "suggest": {
-        "nikic/php-parser": "Required by the tests of the messages of the package (Derafu\\Translation\\Lint reads the code)."
+        "nikic/php-parser": "Required by the tests of the messages of the package (Derafu\\Translation\\Lint reads the code).",
+        "guzzlehttp/guzzle": "A PSR-18 HTTP client and the PSR-17 factories (GuzzleHttp\\Psr7\\HttpFactory) to send the message to the webhook, if the application has no other."
     },
     "scripts": {
         "docs": "php tools/phpdocumentor run --config=phpdoc.xml",

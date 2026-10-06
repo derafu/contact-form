@@ -21,12 +21,14 @@ use Derafu\Form\Processor\FormRulesResolver;
 use Derafu\Form\Type\TypeProvider;
 use Derafu\Form\Type\TypeRegistry;
 use Derafu\Form\Type\TypeResolver;
+use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\HttpFactory;
 use GuzzleHttp\Psr7\UploadedFile;
 use GuzzleHttp\Psr7\Utils;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
+use Psr\Http\Client\ClientExceptionInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 
 /**
@@ -110,7 +112,10 @@ final class ContactServiceTest extends TestCase
                 'form.contact.webhook.secret_key' => '',
                 'form.contact.source' => 'tests',
                 'kernel.context' => ['URL_HOST' => 'tests.example'],
-            ])
+            ]),
+            new Client(['timeout' => 10]),
+            new HttpFactory(),
+            new HttpFactory()
         );
     }
 
@@ -279,8 +284,8 @@ final class ContactServiceTest extends TestCase
         } catch (ContactFormException $e) {
             $this->assertStringStartsWith('Error sending the message: ', $e->getMessage());
             $this->assertStringContainsString('500', $e->getMessage());
-            // The error of the HTTP client is kept as the previous one.
-            $this->assertInstanceOf(RuntimeException::class, $e->getPrevious());
+            // An answer with an error status is not an exception of the client.
+            $this->assertNull($e->getPrevious());
         }
     }
 
@@ -294,9 +299,13 @@ final class ContactServiceTest extends TestCase
 
         $service = $this->service(['form.contact.webhook.url' => 'http://127.0.0.1:' . $port . '/ok']);
 
-        $this->expectException(ContactFormException::class);
-        $this->expectExceptionMessageMatches('/^Error sending the message: /');
-
-        $service->sendToWebhook(['name' => 'Ana']);
+        try {
+            $service->sendToWebhook(['name' => 'Ana']);
+            $this->fail('It should have failed.');
+        } catch (ContactFormException $e) {
+            $this->assertStringStartsWith('Error sending the message: ', $e->getMessage());
+            // The error of the HTTP client is kept as the previous one.
+            $this->assertInstanceOf(ClientExceptionInterface::class, $e->getPrevious());
+        }
     }
 }

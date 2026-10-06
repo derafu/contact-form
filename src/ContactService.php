@@ -17,8 +17,11 @@ use Derafu\Form\Contract\Factory\FormFactoryInterface;
 use Derafu\Form\Contract\FormInterface;
 use Derafu\Form\Contract\Processor\FormDataProcessorInterface;
 use Derafu\Form\Contract\Processor\ProcessResultInterface;
-use Exception;
-use GuzzleHttp\Client;
+use JsonException;
+use Psr\Http\Client\ClientExceptionInterface;
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestFactoryInterface;
+use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\Yaml\Yaml;
@@ -57,11 +60,18 @@ class ContactService
      * @param FormFactoryInterface $formFactory
      * @param FormDataProcessorInterface $formDataProcessor
      * @param ParameterBagInterface $parameterBag
+     * @param ClientInterface $client HTTP client (PSR-18) that sends the
+     * message to the webhook. Its timeout is the one of the client.
+     * @param RequestFactoryInterface $requestFactory
+     * @param StreamFactoryInterface $streamFactory
      */
     public function __construct(
         private readonly FormFactoryInterface $formFactory,
         private readonly FormDataProcessorInterface $formDataProcessor,
         private readonly ParameterBagInterface $parameterBag,
+        private readonly ClientInterface $client,
+        private readonly RequestFactoryInterface $requestFactory,
+        private readonly StreamFactoryInterface $streamFactory,
     ) {
         // Load the webhook configuration.
         $this->webhookUrl = $this->parameterBag->get('form.contact.webhook.url');
@@ -140,9 +150,6 @@ class ContactService
      */
     private function sendMessage(array $data, array $meta = []): array
     {
-        // Initialize the client Guzzle.
-        $client = new Client();
-
         // Build the payload.
         $payload = [
             'meta' => array_merge([
@@ -159,30 +166,42 @@ class ContactService
             'data' => $data,
         ];
 
-        // If the webhook secret key is configured, sign the payload.
-        if ($this->webhookSecretKey) {
-            $signature = hash_hmac(
-                'sha256',
-                json_encode($payload),
-                $this->webhookSecretKey
-            );
-        }
-
         // Send the payload to the webhook.
         try {
-            $response = $client->post($this->webhookUrl, [
-                'json' => $payload,
-                'timeout' => 10,
-                'headers' => isset($signature) ? ['X-Signature' => $signature] : [],
-            ]);
+            $body = json_encode($payload, JSON_THROW_ON_ERROR);
 
-            return json_decode($response->getBody()->getContents(), true);
-        } catch (Exception $e) {
+            $request = $this->requestFactory
+                ->createRequest('POST', $this->webhookUrl)
+                ->withHeader('Content-Type', 'application/json')
+                ->withBody($this->streamFactory->createStream($body))
+            ;
+
+            // If the webhook secret key is configured, sign the payload.
+            if ($this->webhookSecretKey) {
+                $request = $request->withHeader(
+                    'X-Signature',
+                    hash_hmac('sha256', $body, $this->webhookSecretKey)
+                );
+            }
+
+            $response = $this->client->sendRequest($request);
+        } catch (JsonException | ClientExceptionInterface $e) {
             throw new ContactFormException([
                 'Error sending the message: {reason}.',
                 'reason' => $e->getMessage(),
             ], $e);
         }
+
+        // A PSR-18 client does not fail on an error status of the server.
+        if ($response->getStatusCode() >= 400) {
+            throw new ContactFormException([
+                'Error sending the message: {reason}.',
+                'reason' => 'HTTP ' . $response->getStatusCode() . ' '
+                    . $response->getReasonPhrase(),
+            ]);
+        }
+
+        return json_decode((string) $response->getBody(), true);
     }
 
     /**
