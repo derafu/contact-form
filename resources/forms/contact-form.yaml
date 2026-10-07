@@ -69,4 +69,5 @@ uischema:
       scope: '#/properties/message'
       options:
         multi: true
+        rows: 5
         # widget_class: summernote-editor
