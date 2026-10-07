@@ -1,4 +1,5 @@
-translationDomain: contact-form
+options:
+  translation_domain: contact-form
 
 schema:
   name: contact
