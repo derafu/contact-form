@@ -15,6 +15,7 @@ namespace Derafu\TestsContactForm;
 use Derafu\ContactForm\ContactService;
 use Derafu\ContactForm\Exception\ContactFormException;
 use Derafu\ContactForm\Translation\ContactFormTranslationResourceProvider;
+use Derafu\Csrf\SessionCsrfTokenManager;
 use Derafu\DataProcessor\ProcessorFactory;
 use Derafu\Form\Contract\Factory\FormFactoryInterface;
 use Derafu\Form\Factory\FormFactory;
@@ -29,6 +30,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\HttpFactory;
 use GuzzleHttp\Psr7\UploadedFile;
 use GuzzleHttp\Psr7\Utils;
+use Mezzio\Session\Session;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -56,6 +58,8 @@ final class ContactServiceTest extends TestCase
     private static int $port = 0;
 
     private static string $log;
+
+    private SessionCsrfTokenManager $csrf;
 
     public static function setUpBeforeClass(): void
     {
@@ -103,6 +107,9 @@ final class ContactServiceTest extends TestCase
     protected function setUp(): void
     {
         file_put_contents(self::$log, '');
+
+        $this->csrf = new SessionCsrfTokenManager();
+        $this->csrf->useSession(new Session([]));
     }
 
     /**
@@ -112,7 +119,7 @@ final class ContactServiceTest extends TestCase
     {
         return new ContactService(
             $formFactory ?? new FormFactory(new TypeResolver(new TypeRegistry(new TypeProvider()))),
-            new FormDataProcessor(new FormRulesResolver(), (new ProcessorFactory())->create()),
+            new FormDataProcessor(new FormRulesResolver(), (new ProcessorFactory())->create(), csrfTokenManager: $this->csrf),
             new ParameterBag($parameters + [
                 'form.contact.webhook.url' => 'http://127.0.0.1:' . self::$port . '/ok',
                 'form.contact.webhook.secret_key' => '',
@@ -126,11 +133,14 @@ final class ContactServiceTest extends TestCase
     }
 
     /**
+     * What a visitor sends: the data of the form and the token that the form had.
+     *
      * @return array<string, string>
      */
     private function validData(): array
     {
         return [
+            '_token' => $this->csrf->getToken('contact'),
             'name' => 'Ana Perez',
             'email' => 'ana@example.com',
             'telephone' => '+56911112222',
@@ -187,6 +197,27 @@ final class ContactServiceTest extends TestCase
             'Your Name',
             $service->createForm()->toArray()['schema']['properties']['name']['title']
         );
+    }
+
+    #[Test]
+    public function aSubmissionWithoutTheTokenOfTheFormIsNotValid(): void
+    {
+        $data = $this->validData();
+        unset($data['_token']);
+
+        $result = $this->service()->process(data: $data);
+
+        $this->assertFalse($result->isValid());
+        $this->assertCount(1, $result->getFormErrors());
+        $this->assertFalse($result->hasFieldErrors('name'));
+    }
+
+    #[Test]
+    public function aSubmissionWithTheTokenOfAnotherFormIsNotValid(): void
+    {
+        $result = $this->service()->process(data: ['_token' => $this->csrf->getToken('login')] + $this->validData());
+
+        $this->assertFalse($result->isValid());
     }
 
     #[Test]

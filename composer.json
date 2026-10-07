@@ -40,7 +40,8 @@
         "guzzlehttp/guzzle": "^7.10",
         "phpstan/phpstan": "^2.2",
         "phpunit/phpunit": "^13.4",
-        "nikic/php-parser": "^5.9"
+        "nikic/php-parser": "^5.9",
+        "derafu/csrf": "dev-main"
     },
     "suggest": {
         "nikic/php-parser": "Required by the tests of the messages of the package (Derafu\\Translation\\Lint reads the code).",

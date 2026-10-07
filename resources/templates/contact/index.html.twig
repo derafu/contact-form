@@ -20,6 +20,7 @@
             <twig:block-alert class="mb-4" type="danger" content="{{ error }}" />
             {% endif %}
             {{ form_start(form, {'action': path('contact_submit')}) }}
+                {{ form_global_errors(form) }}
                 {{ form_element(form.uiSchema, form) }}
                 {{ form_csrf(form) }}
                 <button type="submit" class="btn btn-primary w-100">{{ 'Send Message'|trans }}</button>

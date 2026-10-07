@@ -1,6 +1,7 @@
 translationDomain: contact-form
 
 schema:
+  name: contact
   type: object
   properties:
     name:
