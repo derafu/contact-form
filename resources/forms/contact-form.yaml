@@ -1,5 +1,6 @@
 options:
   translation_domain: contact-form
+  captcha_protection: true
 
 schema:
   name: contact

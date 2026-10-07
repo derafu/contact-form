@@ -12,11 +12,20 @@ declare(strict_types=1);
 
 namespace Derafu\TestsContactForm;
 
+use AltchaOrg\Altcha\Algorithm\Pbkdf2;
+use AltchaOrg\Altcha\Altcha;
+use AltchaOrg\Altcha\Challenge;
+use AltchaOrg\Altcha\Payload;
+use AltchaOrg\Altcha\SolveChallengeOptions;
+use Derafu\Captcha\Provider\AltchaProvider;
+use Derafu\Captcha\Provider\DisabledCaptchaProvider;
+use Derafu\Captcha\Provider\UnavailableCaptchaProvider;
 use Derafu\ContactForm\ContactService;
 use Derafu\ContactForm\Exception\ContactFormException;
 use Derafu\ContactForm\Translation\ContactFormTranslationResourceProvider;
 use Derafu\Csrf\SessionCsrfTokenManager;
 use Derafu\DataProcessor\ProcessorFactory;
+use Derafu\Form\Contract\Captcha\CaptchaProviderInterface;
 use Derafu\Form\Contract\Factory\FormFactoryInterface;
 use Derafu\Form\Factory\FormFactory;
 use Derafu\Form\Factory\TranslatingFormFactory;
@@ -25,6 +34,7 @@ use Derafu\Form\Processor\FormRulesResolver;
 use Derafu\Form\Type\TypeProvider;
 use Derafu\Form\Type\TypeRegistry;
 use Derafu\Form\Type\TypeResolver;
+use Derafu\Translation\Exception\Core\TranslatableLogicException;
 use Derafu\Translation\TranslatorFactory;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\HttpFactory;
@@ -60,6 +70,8 @@ final class ContactServiceTest extends TestCase
     private static string $log;
 
     private SessionCsrfTokenManager $csrf;
+
+    private AltchaProvider $captcha;
 
     public static function setUpBeforeClass(): void
     {
@@ -110,16 +122,19 @@ final class ContactServiceTest extends TestCase
 
         $this->csrf = new SessionCsrfTokenManager();
         $this->csrf->useSession(new Session([]));
+
+        // The captcha is ALTCHA with a cheap challenge: it needs no service.
+        $this->captcha = new AltchaProvider('a-secret-key', 'en', cost: 10);
     }
 
     /**
      * @param array<string, mixed> $parameters
      */
-    private function service(array $parameters = [], ?FormFactoryInterface $formFactory = null): ContactService
+    private function service(array $parameters = [], ?FormFactoryInterface $formFactory = null, ?CaptchaProviderInterface $captcha = null): ContactService
     {
         return new ContactService(
             $formFactory ?? new FormFactory(new TypeResolver(new TypeRegistry(new TypeProvider()))),
-            new FormDataProcessor(new FormRulesResolver(), (new ProcessorFactory())->create(), csrfTokenManager: $this->csrf),
+            new FormDataProcessor(new FormRulesResolver(), (new ProcessorFactory())->create(), csrfTokenManager: $this->csrf, captchaProvider: $captcha ?? $this->captcha),
             new ParameterBag($parameters + [
                 'form.contact.webhook.url' => 'http://127.0.0.1:' . self::$port . '/ok',
                 'form.contact.webhook.secret_key' => '',
@@ -133,7 +148,25 @@ final class ContactServiceTest extends TestCase
     }
 
     /**
-     * What a visitor sends: the data of the form and the token that the form had.
+     * What the visitor sends when it solves the captcha of the form: the browser
+     * solves the challenge of the widget, which is done here with the library.
+     */
+    private function solvedCaptcha(string $formId = 'contact'): string
+    {
+        $this->assertSame(1, preg_match('/ challenge="([^"]*)"/', $this->captcha->getWidget($formId), $matches));
+        $challenge = Challenge::fromArray(json_decode(html_entity_decode($matches[1], ENT_QUOTES), true));
+        $solution = (new Altcha(hmacSignatureSecret: 'a-secret-key'))->solveChallenge(new SolveChallengeOptions(
+            algorithm: new Pbkdf2(),
+            challenge: $challenge,
+        ));
+        $this->assertNotNull($solution, 'The challenge was not solved.');
+
+        return (new Payload($challenge, $solution))->toBase64();
+    }
+
+    /**
+     * What a visitor sends: the data of the form, the token that the form had and
+     * what it solved of the captcha.
      *
      * @return array<string, string>
      */
@@ -141,6 +174,7 @@ final class ContactServiceTest extends TestCase
     {
         return [
             '_token' => $this->csrf->getToken('contact'),
+            'altcha' => $this->solvedCaptcha(),
             'name' => 'Ana Perez',
             'email' => 'ana@example.com',
             'telephone' => '+56911112222',
@@ -210,6 +244,60 @@ final class ContactServiceTest extends TestCase
         $this->assertFalse($result->isValid());
         $this->assertCount(1, $result->getFormErrors());
         $this->assertFalse($result->hasFieldErrors('name'));
+    }
+
+    #[Test]
+    public function aSubmissionWithoutTheCaptchaIsNotValidAndIsNotSent(): void
+    {
+        $data = $this->validData();
+        unset($data['altcha']);
+
+        $result = $this->service()->process(data: $data);
+
+        $this->assertFalse($result->isValid());
+        $this->assertSame(['The captcha is not valid. Try again.'], $result->getFormErrors());
+        $this->assertFalse($result->hasFieldErrors('name'));
+    }
+
+    #[Test]
+    public function aSubmissionWithTheCaptchaOfAnotherFormIsNotValid(): void
+    {
+        $result = $this->service()->process(data: ['altcha' => $this->solvedCaptcha('login')] + $this->validData());
+
+        $this->assertFalse($result->isValid());
+    }
+
+    #[Test]
+    public function theCaptchaIsNotPartOfWhatIsSentToTheWebhook(): void
+    {
+        $service = $this->service();
+        $result = $service->process(data: $this->validData());
+        $service->sendToWebhook($result->getProcessedData(), ['form' => 'contact']);
+
+        $payload = json_decode($this->received()['body'], true);
+        $this->assertArrayNotHasKey('altcha', $payload['data']);
+        $this->assertArrayNotHasKey('_token', $payload['data']);
+        $this->assertSame('Ana Perez', $payload['data']['name']);
+    }
+
+    #[Test]
+    public function theFormIsProtectedWithTheCaptchaSoItFailsWhenTheApplicationHasNone(): void
+    {
+        $this->expectException(TranslatableLogicException::class);
+        $this->expectExceptionMessage('The form "contact" is protected with a captcha, but the application has none.');
+
+        $this->service(captcha: new UnavailableCaptchaProvider())->process(data: $this->validData());
+    }
+
+    #[Test]
+    public function anApplicationThatDisabledTheCaptchaOnPurposeSendsTheFormWithoutIt(): void
+    {
+        $data = $this->validData();
+        unset($data['altcha']);
+
+        $result = $this->service(captcha: new DisabledCaptchaProvider())->process(data: $data);
+
+        $this->assertTrue($result->isValid());
     }
 
     #[Test]

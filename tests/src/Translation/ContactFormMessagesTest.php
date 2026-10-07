@@ -59,7 +59,7 @@ final class ContactFormMessagesTest extends TestCase
             {
                 return array_map(
                     fn (string $name) => new TwigFunction($name, fn () => ''),
-                    ['path', 'form_start', 'form_global_errors', 'form_element', 'form_csrf', 'form_end']
+                    ['path', 'form_start', 'form_global_errors', 'form_element', 'form_captcha', 'form_csrf', 'form_end']
                 );
             }
         };
