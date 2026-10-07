@@ -42,7 +42,8 @@
         "phpunit/phpunit": "^13.4",
         "nikic/php-parser": "^5.9",
         "derafu/csrf": "dev-main",
-        "derafu/captcha": "dev-main"
+        "derafu/captcha": "dev-main",
+        "altcha-org/altcha": "^2.3"
     },
     "suggest": {
         "nikic/php-parser": "Required by the tests of the messages of the package (Derafu\\Translation\\Lint reads the code).",
