@@ -48,7 +48,9 @@ class ContactService
     private ?string $webhookUrl = null;
 
     /**
-     * Webhook secret key for signing the message sent to the webhook.
+     * Webhook secret key for signing the message sent to the webhook. It is
+     * required: every message is signed, and the receiver decides whether to
+     * check the signature.
      *
      * @var string|null
      */
@@ -78,6 +80,48 @@ class ContactService
         $this->webhookSecretKey = $this->parameterBag->get(
             'form.contact.webhook.secret_key'
         );
+    }
+
+    /**
+     * Whether the contact form is enabled (`FORM_CONTACT_ENABLED`, `true` by
+     * default). An application that does not want the form sets it to `false`:
+     * the pages of the form say that it is not available.
+     */
+    public function isEnabled(): bool
+    {
+        return !$this->parameterBag->has('form.contact.enabled')
+            || (bool) $this->parameterBag->get('form.contact.enabled')
+        ;
+    }
+
+    /**
+     * The environment variables that the form needs to send its messages and
+     * that are not set.
+     *
+     * @return list<string> The names of the variables (none when it is ready).
+     */
+    public function missingConfiguration(): array
+    {
+        $missing = [];
+        if (!$this->webhookUrl) {
+            $missing[] = 'FORM_CONTACT_WEBHOOK_URL';
+        }
+        if (!$this->webhookSecretKey) {
+            $missing[] = 'FORM_CONTACT_WEBHOOK_SECRET_KEY';
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Whether the application is in debug mode (`kernel.debug`): the pages of the
+     * form tell what is wrong with the configuration only then.
+     */
+    public function isDebug(): bool
+    {
+        return $this->parameterBag->has('kernel.debug')
+            && (bool) $this->parameterBag->get('kernel.debug')
+        ;
     }
 
     /**
@@ -135,6 +179,12 @@ class ContactService
             );
         }
 
+        if (!$this->webhookSecretKey) {
+            throw new ContactFormException(
+                'Webhook secret key is not configured for the contact form.'
+            );
+        }
+
         $data = $this->serializeUploadedFiles($data);
 
         return $this->sendMessage($data, $meta);
@@ -176,13 +226,12 @@ class ContactService
                 ->withBody($this->streamFactory->createStream($body))
             ;
 
-            // If the webhook secret key is configured, sign the payload.
-            if ($this->webhookSecretKey) {
-                $request = $request->withHeader(
-                    'X-Signature',
-                    hash_hmac('sha256', $body, $this->webhookSecretKey)
-                );
-            }
+            // The payload is always signed: the receiver decides whether to
+            // check the signature.
+            $request = $request->withHeader(
+                'X-Signature',
+                hash_hmac('sha256', $body, (string) $this->webhookSecretKey)
+            );
 
             $response = $this->client->sendRequest($request);
         } catch (JsonException | ClientExceptionInterface $e) {

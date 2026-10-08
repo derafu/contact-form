@@ -1,5 +1,13 @@
 parameters:
 
+    # The contact form is on by default. FORM_CONTACT_ENABLED=false turns it off
+    # (an application that does not want it, or its tests): the pages of the form
+    # say that it is not available. With it on, the form needs
+    # FORM_CONTACT_WEBHOOK_URL and FORM_CONTACT_WEBHOOK_SECRET_KEY, and without
+    # them the pages say the same, with a 503.
+    env(FORM_CONTACT_ENABLED): 'true'
+    form.contact.enabled: '%env(bool:FORM_CONTACT_ENABLED)%'
+
     # Form configuration.
     form.contact.source: '%env(default::string:FORM_CONTACT_SOURCE)%'
 

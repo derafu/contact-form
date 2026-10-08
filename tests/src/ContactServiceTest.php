@@ -137,7 +137,7 @@ final class ContactServiceTest extends TestCase
             new FormDataProcessor(new FormRulesResolver(), (new ProcessorFactory())->create(), csrfTokenManager: $this->csrf, captchaProvider: $captcha ?? $this->captcha),
             new ParameterBag($parameters + [
                 'form.contact.webhook.url' => 'http://127.0.0.1:' . self::$port . '/ok',
-                'form.contact.webhook.secret_key' => '',
+                'form.contact.webhook.secret_key' => self::SECRET,
                 'form.contact.source' => 'tests',
                 'kernel.context' => ['URL_HOST' => 'tests.example'],
             ]),
@@ -354,9 +354,9 @@ final class ContactServiceTest extends TestCase
     }
 
     #[Test]
-    public function signsThePayloadWhenThereIsASecretKey(): void
+    public function signsThePayloadWithTheSecretKey(): void
     {
-        $this->service(['form.contact.webhook.secret_key' => self::SECRET])->sendToWebhook(['name' => 'Ana']);
+        $this->service()->sendToWebhook(['name' => 'Ana']);
 
         $received = $this->received();
         $this->assertSame(
@@ -366,11 +366,53 @@ final class ContactServiceTest extends TestCase
     }
 
     #[Test]
-    public function doesNotSignThePayloadWithoutASecretKey(): void
+    public function failsWhenThereIsNoSecretKeyAndSendsNothing(): void
     {
-        $this->service()->sendToWebhook(['name' => 'Ana']);
+        $service = $this->service(['form.contact.webhook.secret_key' => '']);
 
-        $this->assertNull($this->received()['signature']);
+        try {
+            $service->sendToWebhook(['name' => 'Ana']);
+            $this->fail('A message was sent without a secret key to sign it.');
+        } catch (ContactFormException $e) {
+            $this->assertSame('Webhook secret key is not configured for the contact form.', $e->getMessage());
+        }
+
+        // Nothing reached the webhook: it is not sent unsigned.
+        $this->assertSame('', (string) file_get_contents(self::$log));
+    }
+
+    #[Test]
+    public function isEnabledUnlessTheParameterSaysOtherwise(): void
+    {
+        $this->assertTrue($this->service()->isEnabled());
+        $this->assertTrue($this->service(['form.contact.enabled' => true])->isEnabled());
+        $this->assertFalse($this->service(['form.contact.enabled' => false])->isEnabled());
+    }
+
+    #[Test]
+    public function tellsWhichVariablesAreMissing(): void
+    {
+        $this->assertSame([], $this->service()->missingConfiguration());
+        $this->assertSame(
+            ['FORM_CONTACT_WEBHOOK_URL'],
+            $this->service(['form.contact.webhook.url' => ''])->missingConfiguration()
+        );
+        $this->assertSame(
+            ['FORM_CONTACT_WEBHOOK_SECRET_KEY'],
+            $this->service(['form.contact.webhook.secret_key' => ''])->missingConfiguration()
+        );
+        $this->assertSame(
+            ['FORM_CONTACT_WEBHOOK_URL', 'FORM_CONTACT_WEBHOOK_SECRET_KEY'],
+            $this->service(['form.contact.webhook.url' => '', 'form.contact.webhook.secret_key' => ''])->missingConfiguration()
+        );
+    }
+
+    #[Test]
+    public function isInDebugOnlyWhenTheKernelIs(): void
+    {
+        $this->assertFalse($this->service()->isDebug());
+        $this->assertFalse($this->service(['kernel.debug' => false])->isDebug());
+        $this->assertTrue($this->service(['kernel.debug' => true])->isDebug());
     }
 
     #[Test]

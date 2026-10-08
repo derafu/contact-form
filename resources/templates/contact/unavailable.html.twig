@@ -1,0 +1,28 @@
+{% extends 'layouts/default.html.twig' %}
+{% trans_default_domain 'contact-form+intl-icu' %}
+
+{% block title %}{{ 'Contact Us'|trans }}{% endblock %}
+
+{% block content %}
+
+<twig:block-hero
+    size="small"
+    background="/img/contact/contact-hero.png"
+    :contentBackground="true"
+    title="{{ 'Contact Us'|trans }}"
+    subtitle="{{ 'The contact form is not available.'|trans }}"
+/>
+
+<div class="my-5 container">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <p class="lead mb-4">{{ 'At the moment it is not possible to send a message through this site.'|trans }}</p>
+            {% if detail %}
+            <twig:block-alert class="mb-4 text-start" type="warning" content="{{ detail }}" />
+            {% endif %}
+            <a href="{{ path('homepage') }}" class="btn btn-primary mt-3">{{ 'Back to Home'|trans }}</a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

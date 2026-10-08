@@ -34,6 +34,17 @@ return [
         'Nuestro equipo agradece tu interés y se pondrá en contacto contigo pronto.',
     'Back to Home' => 'Volver al Inicio',
 
+    // contact/unavailable.html.twig.
+    'The contact form is not available.' => 'El formulario de contacto no está disponible.',
+    'At the moment it is not possible to send a message through this site.' =>
+        'Por ahora no es posible enviar un mensaje a través de este sitio.',
+
+    // Controller (only in debug).
+    'The contact form needs these variables: {variables}.' =>
+        'El formulario de contacto necesita estas variables: {variables}.',
+    'The contact form is turned off: FORM_CONTACT_ENABLED is false.' =>
+        'El formulario de contacto está desactivado: FORM_CONTACT_ENABLED es false.',
+
     // forms/contact-form.yaml.
     'Your Name' => 'Tu nombre',
     'Your Email' => 'Tu correo electrónico',

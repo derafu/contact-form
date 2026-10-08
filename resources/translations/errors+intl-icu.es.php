@@ -13,6 +13,8 @@ declare(strict_types=1);
 return [
     'Webhook URL is not configured for the contact form.' =>
         'La URL del webhook no está configurada para el formulario de contacto.',
+    'Webhook secret key is not configured for the contact form.' =>
+        'La clave secreta del webhook no está configurada para el formulario de contacto.',
     'Parameter form.contact.source is not configured.' =>
         'El parámetro form.contact.source no está configurado.',
     'Error sending the message: {reason}.' =>

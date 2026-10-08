@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace Derafu\ContactForm;
 
 use Derafu\Http\Contract\ResponseInterface;
+use Derafu\Http\Enum\HttpStatus;
 use Derafu\Http\Request;
 use Derafu\Http\Response;
 use Derafu\Renderer\Contract\RendererInterface;
@@ -63,6 +64,13 @@ class ContactController
     protected const TEMPLATE_SUCCESS = 'contact/success.html.twig';
 
     /**
+     * Template that says that the contact form is not available.
+     *
+     * @var string
+     */
+    protected const TEMPLATE_UNAVAILABLE = 'contact/unavailable.html.twig';
+
+    /**
      * URI for the contact form success page.
      *
      * @var string
@@ -92,8 +100,12 @@ class ContactController
      *
      * @return string
      */
-    public function index(Request $request): string
+    public function index(Request $request): string|ResponseInterface
     {
+        if (($unavailable = $this->unavailable()) !== null) {
+            return $unavailable;
+        }
+
         return $this->renderer->render(static::TEMPLATE_INDEX, [
             'form' => $this->contactService->createForm(
                 static::FORM_DEFINITION,
@@ -109,6 +121,10 @@ class ContactController
      */
     public function submit(Request $request): string|ResponseInterface
     {
+        if (($unavailable = $this->unavailable()) !== null) {
+            return $unavailable;
+        }
+
         $form = $this->contactService->createForm(static::FORM_DEFINITION);
 
         try {
@@ -136,8 +152,12 @@ class ContactController
             // Redirect to the success page.
             return (new Response())->redirect(static::URI_SUCCESS);
         } catch (Exception $e) {
+            // The user gets the form back with what it wrote, to try again.
             return $this->renderer->render(static::TEMPLATE_INDEX, [
-                'form' => $form,
+                'form' => $this->contactService->createForm(
+                    static::FORM_DEFINITION,
+                    $request->all()
+                ),
                 'error' => $this->transThrowable($e),
             ]);
         }
@@ -188,8 +208,49 @@ class ContactController
      *
      * @return string
      */
-    public function success(): string
+    public function success(): string|ResponseInterface
     {
+        if (($unavailable = $this->unavailable()) !== null) {
+            return $unavailable;
+        }
+
         return $this->renderer->render(static::TEMPLATE_SUCCESS);
+    }
+
+    /**
+     * The page that says that the contact form is not available, or null if it is.
+     *
+     * It is the same page when the application turned the form off
+     * (`FORM_CONTACT_ENABLED=false`, a `200`: it is not an error) and when the
+     * form is on but lacks what it needs to send its messages (a `503`: it is
+     * a configuration that is missing). It is a page of its own, and not the
+     * template of the form, so every site shows it, whatever its copy of the
+     * template of the form has. What is wrong is told only in debug.
+     */
+    private function unavailable(): ?ResponseInterface
+    {
+        $enabled = $this->contactService->isEnabled();
+        $missing = $enabled ? $this->contactService->missingConfiguration() : [];
+
+        if ($enabled && $missing === []) {
+            return null;
+        }
+
+        $detail = null;
+        if ($this->contactService->isDebug()) {
+            $detail = $enabled
+                ? $this->trans('The contact form needs these variables: {variables}.', [
+                    'variables' => implode(', ', $missing),
+                ])
+                : $this->trans('The contact form is turned off: FORM_CONTACT_ENABLED is false.')
+            ;
+        }
+
+        return (new Response())
+            ->asHtml($this->renderer->render(static::TEMPLATE_UNAVAILABLE, [
+                'detail' => $detail,
+            ]))
+            ->withHttpStatus($enabled ? HttpStatus::SERVICE_UNAVAILABLE : HttpStatus::OK)
+        ;
     }
 }
