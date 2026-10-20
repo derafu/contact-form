@@ -30,6 +30,7 @@
         "derafu/form": "dev-main",
         "derafu/data-processor": "dev-main",
         "derafu/translation": "dev-main",
+        "derafu/twig-components": "dev-main",
         "psr/http-client": "^1.0",
         "psr/http-factory": "^1.0",
         "psr/http-message": "^2.0"

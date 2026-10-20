@@ -18,6 +18,7 @@ use Derafu\Form\Lint\FormTranslationAudit;
 use Derafu\Translation\Lint\MessageMethod;
 use Derafu\Translation\Lint\MessageReference;
 use Derafu\Twig\Lint\TwigTranslationAudit;
+use Derafu\Twig\Provider\DirectoryComponentProvider;
 use Derafu\Twig\Service\TwigService;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -70,8 +71,9 @@ final class ContactFormMessagesTest extends TestCase
             new ContactFormTranslationResourceProvider(),
             (new TwigService([
                 'extra' => false,
-                'paths' => [$root . '/resources/templates', $root . '/vendor/derafu/twig/resources/templates'],
+                'paths' => [$root . '/resources/templates', $root . '/vendor/derafu/twig-components/resources/templates'],
                 'extensions' => [$application],
+                'components' => new DirectoryComponentProvider($root . '/vendor/derafu/twig-components/src/Component'),
             ]))->getTwig(),
             messageMethods: [
                 new MessageMethod(ContactController::class, 'trans', domain: 'contact-form', id: 0),
