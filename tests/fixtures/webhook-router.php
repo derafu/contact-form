@@ -7,10 +7,14 @@ declare(strict_types=1);
  *
  * It writes what it received in the file of the environment variable
  * `WEBHOOK_LOG`, and answers according to the path: `/error` is a failure of
- * the server and any other path is a success.
+ * the server; other routes exercise successful and invalid JSON responses.
  */
 
-$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$uri = $_SERVER['REQUEST_URI'];
+if (!is_string($uri)) {
+    throw new RuntimeException('The local webhook request URI must be a string.');
+}
+$path = parse_url($uri, PHP_URL_PATH);
 
 file_put_contents((string) getenv('WEBHOOK_LOG'), json_encode([
     'method' => $_SERVER['REQUEST_METHOD'],
@@ -29,4 +33,20 @@ if ($path === '/error') {
     return;
 }
 
-echo '{"status":"received"}';
+if ($path === '/no-content') {
+    http_response_code(204);
+    return;
+}
+
+echo match ($path) {
+    '/object' => '{}',
+    '/empty-list' => '[]',
+    '/list' => '[{"status":"received"}]',
+    '/malformed' => '{',
+    '/empty' => '',
+    '/null' => 'null',
+    '/boolean' => 'false',
+    '/number' => '42',
+    '/string' => '"received"',
+    default => '{"status":"received"}',
+};

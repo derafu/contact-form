@@ -26,7 +26,7 @@ class ContactFormException extends TranslatableRuntimeException
     /**
      * Constructor.
      *
-     * @param string|array|TranslatableInterface $message The exception message.
+     * @param string|array<array-key, mixed>|TranslatableInterface $message The exception message.
      * @param Throwable|null $previous The previous throwable used for
      * exception chaining.
      */

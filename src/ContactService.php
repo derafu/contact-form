@@ -76,8 +76,8 @@ class ContactService
         private readonly StreamFactoryInterface $streamFactory,
     ) {
         // Load the webhook configuration.
-        $this->webhookUrl = $this->parameterBag->get('form.contact.webhook.url');
-        $this->webhookSecretKey = $this->parameterBag->get(
+        $this->webhookUrl = $this->readOptionalString('form.contact.webhook.url');
+        $this->webhookSecretKey = $this->readOptionalString(
             'form.contact.webhook.secret_key'
         );
     }
@@ -127,8 +127,8 @@ class ContactService
     /**
      * Create a new form instance.
      *
-     * @param string|array $formDefinition The form definition to use.
-     * @param array $data The data to use for the form.
+     * @param string|array<string, mixed> $formDefinition The form definition to use.
+     * @param array<array-key, mixed> $data The data to use for the form.
      * @return FormInterface
      */
     public function createForm(
@@ -137,6 +137,15 @@ class ContactService
     ): FormInterface {
         if (is_string($formDefinition)) {
             $formDefinition = Yaml::parseFile($formDefinition);
+        }
+
+        if (!is_array($formDefinition)) {
+            throw new ContactFormException('The contact form definition must be an array with string keys.');
+        }
+        foreach ($formDefinition as $key => $value) {
+            if (!is_string($key)) {
+                throw new ContactFormException('The contact form definition must be an array with string keys.');
+            }
         }
 
         if (!empty($data)) {
@@ -149,7 +158,8 @@ class ContactService
     /**
      * Process the form data.
      *
-     * @param FormInterface|string|array $form The form definition to use.
+     * @param FormInterface|string|array<string, mixed> $form The form definition to use.
+     * @param array<array-key, mixed> $data The form data to process.
      * @return ProcessResultInterface The result of the form processing.
      */
     public function process(
@@ -166,9 +176,9 @@ class ContactService
     /**
      * Send the processed data to the webhook.
      *
-     * @param array $data The processed data of the form to send.
-     * @param array $meta The meta data of the form to send.
-     * @return array
+     * @param array<array-key, mixed> $data The processed data of the form to send.
+     * @param array<array-key, mixed> $meta The meta data of the form to send.
+     * @return array<array-key, mixed>
      * @throws ContactFormException
      */
     public function sendToWebhook(array $data, array $meta = []): array
@@ -187,29 +197,38 @@ class ContactService
 
         $data = $this->serializeUploadedFiles($data);
 
-        return $this->sendMessage($data, $meta);
+        return $this->sendMessage($this->webhookUrl, $data, $meta);
     }
 
     /**
      * Send the message of the form using the webhook.
      *
-     * @param array $data The processed data of the form to send.
-     * @param array $meta The meta data of the form to send.
-     * @return array
+     * @param array<array-key, mixed> $data The processed data of the form to send.
+     * @param array<array-key, mixed> $meta The meta data of the form to send.
+     * @return array<array-key, mixed>
      * @throws ContactFormException
      */
-    private function sendMessage(array $data, array $meta = []): array
+    private function sendMessage(string $webhookUrl, array $data, array $meta = []): array
     {
+        $source = $this->readOptionalString('form.contact.source');
+        if ($source === null) {
+            $context = $this->parameterBag->get('kernel.context');
+            if ($context !== null && !is_array($context)) {
+                throw new ContactFormException('Parameter kernel.context must be an array or null.');
+            }
+            $source = $context['URL_HOST'] ?? null;
+            if ($source !== null && !is_string($source)) {
+                throw new ContactFormException('Parameter kernel.context.URL_HOST must be a string or null.');
+            }
+        }
+        if ($source === null) {
+            throw new ContactFormException('Parameter form.contact.source is not configured.');
+        }
+
         // Build the payload.
         $payload = [
             'meta' => array_merge([
-                'source' =>
-                    $this->parameterBag->get('form.contact.source')
-                    ?? $this->parameterBag->get('kernel.context')['URL_HOST']
-                    ?? throw new ContactFormException(
-                        'Parameter form.contact.source is not configured.'
-                    )
-                ,
+                'source' => $source,
                 'form' => 'contact',
                 'timestamp' => time(),
             ], $meta),
@@ -221,7 +240,7 @@ class ContactService
             $body = json_encode($payload, JSON_THROW_ON_ERROR);
 
             $request = $this->requestFactory
-                ->createRequest('POST', $this->webhookUrl)
+                ->createRequest('POST', $webhookUrl)
                 ->withHeader('Content-Type', 'application/json')
                 ->withBody($this->streamFactory->createStream($body))
             ;
@@ -250,14 +269,39 @@ class ContactService
             ]);
         }
 
-        return json_decode((string) $response->getBody(), true);
+        try {
+            $decoded = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            throw new ContactFormException('The webhook response must be a valid JSON object or array.', $e);
+        }
+        if (!is_array($decoded)) {
+            throw new ContactFormException('The webhook response must be a valid JSON object or array.');
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * Read a nullable string parameter without coercing configuration values.
+     */
+    private function readOptionalString(string $name): ?string
+    {
+        $value = $this->parameterBag->get($name);
+        if ($value !== null && !is_string($value)) {
+            throw new ContactFormException([
+                'Parameter {name} must be a string or null.',
+                'name' => $name,
+            ]);
+        }
+
+        return $value;
     }
 
     /**
      * Serialize the uploaded files.
      *
      * @param mixed $data
-     * @return array
+     * @return array<array-key, mixed>
      */
     private function serializeUploadedFiles(mixed $data): array
     {

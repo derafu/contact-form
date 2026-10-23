@@ -40,8 +40,10 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\HttpFactory;
 use GuzzleHttp\Psr7\UploadedFile;
 use GuzzleHttp\Psr7\Utils;
+use JsonException;
 use Mezzio\Session\Session;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -80,7 +82,11 @@ final class ContactServiceTest extends TestCase
         // A free port: it is asked to the system and released right away.
         $socket = stream_socket_server('tcp://127.0.0.1:0', $errno, $error);
         self::assertNotFalse($socket, (string) $error);
-        self::$port = (int) substr(strrchr((string) stream_socket_get_name($socket, false), ':'), 1);
+        $address = stream_socket_get_name($socket, false);
+        self::assertIsString($address);
+        $suffix = strrchr($address, ':');
+        self::assertNotFalse($suffix);
+        self::$port = (int) substr($suffix, 1);
         fclose($socket);
 
         $process = proc_open(
@@ -154,7 +160,10 @@ final class ContactServiceTest extends TestCase
     private function solvedCaptcha(string $formId = 'contact'): string
     {
         $this->assertSame(1, preg_match('/ challenge="([^"]*)"/', $this->captcha->getWidget($formId), $matches));
-        $challenge = Challenge::fromArray(json_decode(html_entity_decode($matches[1], ENT_QUOTES), true));
+        $this->assertArrayHasKey(1, $matches);
+        $encoded = $matches[1] ?? null;
+        $this->assertIsString($encoded);
+        $challenge = Challenge::fromArray($this->decodeObject(html_entity_decode($encoded, ENT_QUOTES)));
         $solution = (new Altcha(hmacSignatureSecret: 'a-secret-key'))->solveChallenge(new SolveChallengeOptions(
             algorithm: new Pbkdf2(),
             challenge: $challenge,
@@ -184,15 +193,67 @@ final class ContactServiceTest extends TestCase
         ];
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
+    private function decodeObject(string $json): array
+    {
+        $decoded = json_decode($json, true);
+        $this->assertIsArray($decoded);
+        $object = [];
+        foreach ($decoded as $key => $value) {
+            $this->assertIsString($key);
+            $object[$key] = $value;
+        }
+
+        return $object;
+    }
+
+    /** @return array{method:string,path:string,content_type:string,signature:string,body:string} */
     private function received(): array
     {
-        $received = json_decode((string) file_get_contents(self::$log), true);
-        $this->assertIsArray($received, 'The webhook received nothing.');
+        $received = $this->decodeObject((string) file_get_contents(self::$log));
+        $this->assertArrayHasKey('method', $received);
+        $this->assertArrayHasKey('path', $received);
+        $this->assertArrayHasKey('content_type', $received);
+        $this->assertArrayHasKey('signature', $received);
+        $this->assertArrayHasKey('body', $received);
+        $this->assertIsString($received['method']);
+        $this->assertIsString($received['path']);
+        $this->assertIsString($received['content_type']);
+        $this->assertIsString($received['signature']);
+        $this->assertIsString($received['body']);
 
         return $received;
+    }
+
+    /** @return array{data:array<array-key,mixed>,meta:array<array-key,mixed>} */
+    private function receivedPayload(): array
+    {
+        $payload = $this->decodeObject($this->received()['body']);
+        $this->assertArrayHasKey('data', $payload);
+        $this->assertArrayHasKey('meta', $payload);
+        $this->assertIsArray($payload['data']);
+        $this->assertIsArray($payload['meta']);
+
+        return $payload;
+    }
+
+    /**
+     * @param array<string,mixed> $definition
+     * @return array<array-key,mixed>
+     */
+    private function schemaProperty(array $definition, string $name): array
+    {
+        $this->assertArrayHasKey('schema', $definition);
+        $schema = $definition['schema'];
+        $this->assertIsArray($schema);
+        $this->assertArrayHasKey('properties', $schema);
+        $properties = $schema['properties'];
+        $this->assertIsArray($properties);
+        $this->assertArrayHasKey($name, $properties);
+        $property = $properties[$name];
+        $this->assertIsArray($property);
+
+        return $property;
     }
 
     #[Test]
@@ -201,7 +262,9 @@ final class ContactServiceTest extends TestCase
         $form = $this->service()->createForm(data: ['name' => 'Ana']);
 
         $this->assertNotNull($form->getField('email'));
-        $this->assertSame('Ana', $form->getField('name')->getData());
+        $name = $form->getField('name');
+        $this->assertNotNull($name);
+        $this->assertSame('Ana', $name->getData());
     }
 
     /**
@@ -221,15 +284,21 @@ final class ContactServiceTest extends TestCase
 
         $form = $service->createForm()->toArray();
 
-        $this->assertSame('Tu nombre', $form['schema']['properties']['name']['title']);
-        $this->assertSame('Tu mensaje', $form['schema']['properties']['message']['title']);
-        $this->assertSame('Tu correo electrónico', $form['uischema']['elements'][1]['label']);
+        $this->assertSame('Tu nombre', $this->schemaProperty($form, 'name')['title']);
+        $this->assertSame('Tu mensaje', $this->schemaProperty($form, 'message')['title']);
+        $uischema = $form['uischema'];
+        $this->assertIsArray($uischema);
+        $elements = $uischema['elements'];
+        $this->assertIsArray($elements);
+        $email = $elements[1];
+        $this->assertIsArray($email);
+        $this->assertSame('Tu correo electrónico', $email['label']);
 
         // In English, the texts as they were written.
         $translator->setLocale('en');
         $this->assertSame(
             'Your Name',
-            $service->createForm()->toArray()['schema']['properties']['name']['title']
+            $this->schemaProperty($service->createForm()->toArray(), 'name')['title']
         );
     }
 
@@ -272,9 +341,11 @@ final class ContactServiceTest extends TestCase
     {
         $service = $this->service();
         $result = $service->process(data: $this->validData());
-        $service->sendToWebhook($result->getProcessedData(), ['form' => 'contact']);
+        $data = $result->getProcessedData();
+        $this->assertIsArray($data);
+        $service->sendToWebhook($data, ['form' => 'contact']);
 
-        $payload = json_decode($this->received()['body'], true);
+        $payload = $this->receivedPayload();
         $this->assertArrayNotHasKey('altcha', $payload['data']);
         $this->assertArrayNotHasKey('_token', $payload['data']);
         $this->assertSame('Ana Perez', $payload['data']['name']);
@@ -314,7 +385,9 @@ final class ContactServiceTest extends TestCase
         $result = $this->service()->process(data: $this->validData());
 
         $this->assertTrue($result->isValid());
-        $this->assertSame('Ana Perez', $result->getProcessedData()['name']);
+        $data = $result->getProcessedData();
+        $this->assertIsArray($data);
+        $this->assertSame('Ana Perez', $data['name']);
     }
 
     #[Test]
@@ -345,7 +418,7 @@ final class ContactServiceTest extends TestCase
         $this->assertSame('/ok', $received['path']);
         $this->assertStringStartsWith('application/json', $received['content_type']);
 
-        $payload = json_decode($received['body'], true);
+        $payload = $this->receivedPayload();
         $this->assertSame(['name' => 'Ana'], $payload['data']);
         $this->assertSame('tests', $payload['meta']['source']);
         $this->assertSame('contact', $payload['meta']['form']);
@@ -424,7 +497,7 @@ final class ContactServiceTest extends TestCase
             'nested' => ['name' => 'Ana'],
         ]);
 
-        $data = json_decode($this->received()['body'], true)['data'];
+        $data = $this->receivedPayload()['data'];
         $this->assertSame([
             'filename' => 'hello.txt',
             'media_type' => 'text/plain',
@@ -443,7 +516,7 @@ final class ContactServiceTest extends TestCase
 
         $this->assertSame(
             'tests.example',
-            json_decode($this->received()['body'], true)['meta']['source']
+            $this->receivedPayload()['meta']['source']
         );
     }
 
@@ -490,7 +563,12 @@ final class ContactServiceTest extends TestCase
     {
         // A port where nothing listens: the one of a server that was closed.
         $socket = stream_socket_server('tcp://127.0.0.1:0');
-        $port = (int) substr(strrchr((string) stream_socket_get_name($socket, false), ':'), 1);
+        $this->assertNotFalse($socket);
+        $address = stream_socket_get_name($socket, false);
+        $this->assertIsString($address);
+        $suffix = strrchr($address, ':');
+        $this->assertNotFalse($suffix);
+        $port = (int) substr($suffix, 1);
         fclose($socket);
 
         $service = $this->service(['form.contact.webhook.url' => 'http://127.0.0.1:' . $port . '/ok']);
@@ -503,5 +581,152 @@ final class ContactServiceTest extends TestCase
             // The error of the HTTP client is kept as the previous one.
             $this->assertInstanceOf(ClientExceptionInterface::class, $e->getPrevious());
         }
+    }
+
+    /** @return iterable<string, array{string, mixed}> */
+    public static function invalidConfiguration(): iterable
+    {
+        foreach (['form.contact.webhook.url', 'form.contact.webhook.secret_key', 'form.contact.source'] as $name) {
+            foreach ([false, 123, 1.5, []] as $index => $value) {
+                yield $name . '-' . $index => [$name, $value];
+            }
+        }
+    }
+
+    #[Test]
+    #[DataProvider('invalidConfiguration')]
+    public function rejectsInvalidStringConfigurationBeforeSending(string $name, mixed $value): void
+    {
+        try {
+            $this->service([$name => $value])->sendToWebhook(['name' => 'Ana']);
+            $this->fail('Invalid configuration must not be sent.');
+        } catch (ContactFormException $e) {
+            $this->assertSame('Parameter ' . $name . ' must be a string or null.', $e->getMessage());
+        }
+        $this->assertSame('', file_get_contents(self::$log));
+    }
+
+    /** @return iterable<string, array{mixed, string}> */
+    public static function invalidKernelContext(): iterable
+    {
+        yield 'context is a string' => ['host', 'Parameter kernel.context must be an array or null.'];
+        yield 'context is false' => [false, 'Parameter kernel.context must be an array or null.'];
+        yield 'host is an array' => [['URL_HOST' => []], 'Parameter kernel.context.URL_HOST must be a string or null.'];
+        yield 'host is numeric' => [['URL_HOST' => 123], 'Parameter kernel.context.URL_HOST must be a string or null.'];
+        yield 'no context' => [null, 'Parameter form.contact.source is not configured.'];
+    }
+
+    #[Test]
+    #[DataProvider('invalidKernelContext')]
+    public function rejectsInvalidFallbackSources(mixed $context, string $message): void
+    {
+        $this->expectException(ContactFormException::class);
+        $this->expectExceptionMessage($message);
+        $this->service(['form.contact.source' => null, 'kernel.context' => $context])->sendToWebhook([]);
+    }
+
+    #[Test]
+    public function anEmptyExplicitSourceDoesNotUseTheFallback(): void
+    {
+        $this->service(['form.contact.source' => '', 'kernel.context' => false])->sendToWebhook([]);
+        $this->assertSame('', $this->receivedPayload()['meta']['source']);
+    }
+
+    #[Test]
+    public function nullWebhookSettingsAreReportedAsMissing(): void
+    {
+        $this->assertSame(
+            ['FORM_CONTACT_WEBHOOK_URL', 'FORM_CONTACT_WEBHOOK_SECRET_KEY'],
+            $this->service(['form.contact.webhook.url' => null, 'form.contact.webhook.secret_key' => null])->missingConfiguration()
+        );
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function invalidYamlDefinitions(): iterable
+    {
+        yield 'scalar' => ['invalid-scalar.yaml'];
+        yield 'empty' => ['invalid-empty.yaml'];
+        yield 'list' => ['invalid-list.yaml'];
+    }
+
+    #[Test]
+    #[DataProvider('invalidYamlDefinitions')]
+    public function rejectsInvalidYamlDefinitions(string $filename): void
+    {
+        $this->expectException(ContactFormException::class);
+        $this->expectExceptionMessage('The contact form definition must be an array with string keys.');
+        $this->service()->createForm(__DIR__ . '/../fixtures/' . $filename);
+    }
+
+    #[Test]
+    public function createsAFormFromAnArrayDefinition(): void
+    {
+        $form = $this->service()->createForm([
+            'schema' => ['type' => 'object', 'properties' => ['name' => ['type' => 'string']]],
+        ], ['name' => 'Ana']);
+        $name = $form->getField('name');
+        $this->assertNotNull($name);
+        $this->assertSame('Ana', $name->getData());
+    }
+
+    /** @return iterable<string, array{string, array<array-key, mixed>}> */
+    public static function validWebhookResponses(): iterable
+    {
+        yield 'empty object' => ['object', []];
+        yield 'empty list' => ['empty-list', []];
+        yield 'list' => ['list', [['status' => 'received']]];
+    }
+
+    /** @param array<array-key, mixed> $expected */
+    #[Test]
+    #[DataProvider('validWebhookResponses')]
+    public function acceptsJsonObjectsAndLists(string $path, array $expected): void
+    {
+        $this->assertSame($expected, $this->service([
+            'form.contact.webhook.url' => 'http://127.0.0.1:' . self::$port . '/' . $path,
+        ])->sendToWebhook([]));
+    }
+
+    /** @return iterable<string, array{string, bool}> */
+    public static function invalidWebhookResponses(): iterable
+    {
+        yield 'malformed' => ['malformed', true];
+        yield 'empty body' => ['empty', true];
+        yield 'no content' => ['no-content', true];
+        yield 'null' => ['null', false];
+        yield 'boolean' => ['boolean', false];
+        yield 'number' => ['number', false];
+        yield 'string' => ['string', false];
+    }
+
+    #[Test]
+    #[DataProvider('invalidWebhookResponses')]
+    public function rejectsResponsesThatAreNotJsonObjectsOrLists(string $path, bool $invalidJson): void
+    {
+        try {
+            $this->service([
+                'form.contact.webhook.url' => 'http://127.0.0.1:' . self::$port . '/' . $path,
+            ])->sendToWebhook([]);
+            $this->fail('An invalid webhook response must fail.');
+        } catch (ContactFormException $e) {
+            $this->assertSame('The webhook response must be a valid JSON object or array.', $e->getMessage());
+            if ($invalidJson) {
+                $this->assertInstanceOf(JsonException::class, $e->getPrevious());
+            } else {
+                $this->assertNull($e->getPrevious());
+            }
+        }
+    }
+
+    #[Test]
+    public function invalidUtf8DataIsNotSentToTheWebhook(): void
+    {
+        try {
+            $this->service()->sendToWebhook(['message' => "\xB1"]);
+            $this->fail('Invalid UTF-8 cannot be encoded as JSON.');
+        } catch (ContactFormException $e) {
+            $this->assertInstanceOf(JsonException::class, $e->getPrevious());
+        }
+        $this->assertSame('', file_get_contents(self::$log));
     }
 }

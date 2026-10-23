@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace Derafu\ContactForm;
 
+use Derafu\ContactForm\Exception\ContactFormException;
 use Derafu\Http\Contract\ResponseInterface;
 use Derafu\Http\Enum\HttpStatus;
 use Derafu\Http\Request;
@@ -147,7 +148,11 @@ class ContactController
             $meta = [
                 'form' => static::FORM_TYPE,
             ];
-            $this->contactService->sendToWebhook($result->getProcessedData(), $meta);
+            $processedData = $result->getProcessedData();
+            if (!is_array($processedData)) {
+                throw new ContactFormException('The processed contact form data must be an array.');
+            }
+            $this->contactService->sendToWebhook($processedData, $meta);
 
             // Redirect to the success page.
             return (new Response())->redirect(static::URI_SUCCESS);

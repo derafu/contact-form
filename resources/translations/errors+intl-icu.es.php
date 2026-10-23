@@ -19,4 +19,16 @@ return [
         'El parámetro form.contact.source no está configurado.',
     'Error sending the message: {reason}.' =>
         'Error al enviar el mensaje: {reason}.',
+    'Parameter {name} must be a string or null.' =>
+        'El parámetro {name} debe ser un string o null.',
+    'Parameter kernel.context must be an array or null.' =>
+        'El parámetro kernel.context debe ser un arreglo o null.',
+    'Parameter kernel.context.URL_HOST must be a string or null.' =>
+        'El parámetro kernel.context.URL_HOST debe ser un string o null.',
+    'The contact form definition must be an array with string keys.' =>
+        'La definición del formulario de contacto debe ser un arreglo con claves string.',
+    'The processed contact form data must be an array.' =>
+        'Los datos procesados del formulario de contacto deben ser un arreglo.',
+    'The webhook response must be a valid JSON object or array.' =>
+        'La respuesta del webhook debe ser un objeto o arreglo JSON válido.',
 ];

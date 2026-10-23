@@ -15,11 +15,13 @@ namespace Derafu\TestsContactForm;
 use Derafu\ContactForm\ContactController;
 use Derafu\ContactForm\ContactService;
 use Derafu\ContactForm\Exception\ContactFormException;
+use Derafu\ContactForm\Translation\ContactFormTranslationResourceProvider;
 use Derafu\Form\Contract\FormInterface;
 use Derafu\Form\Contract\Processor\ProcessResultInterface;
 use Derafu\Http\Contract\ResponseInterface;
 use Derafu\Http\Request;
 use Derafu\Renderer\Contract\RendererInterface;
+use Derafu\Translation\TranslatorFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -27,6 +29,7 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 /**
  * What the controller answers when the contact form is not available (turned
@@ -36,6 +39,7 @@ use PHPUnit\Framework\TestCase;
  */
 #[CoversClass(ContactController::class)]
 #[UsesClass(ContactFormException::class)]
+#[UsesClass(ContactFormTranslationResourceProvider::class)]
 final class ContactControllerTest extends TestCase
 {
     private const UNAVAILABLE = 'contact/unavailable.html.twig';
@@ -106,6 +110,7 @@ final class ContactControllerTest extends TestCase
         return new ContactController($this->renderer(), $service);
     }
 
+    /** @param array<string, mixed> $data */
     private function post(array $data = ['name' => 'Ana']): Request
     {
         return (new Request('POST', 'http://localhost/contact/submit'))->withParsedBody($data);
@@ -173,9 +178,13 @@ final class ContactControllerTest extends TestCase
         $this->page($this->controller($this->service(missing: ['FORM_CONTACT_WEBHOOK_SECRET_KEY'], debug: true)), 'index');
 
         $this->assertCount(2, $this->rendered);
-        $this->assertStringContainsString('FORM_CONTACT_ENABLED', (string) $this->rendered[0][1]['detail']);
-        $this->assertStringContainsString('FORM_CONTACT_WEBHOOK_SECRET_KEY', (string) $this->rendered[1][1]['detail']);
-        $this->assertStringNotContainsString('FORM_CONTACT_WEBHOOK_URL', (string) $this->rendered[1][1]['detail']);
+        $disabledDetail = $this->rendered[0][1]['detail'];
+        $missingDetail = $this->rendered[1][1]['detail'];
+        $this->assertIsString($disabledDetail);
+        $this->assertIsString($missingDetail);
+        $this->assertStringContainsString('FORM_CONTACT_ENABLED', $disabledDetail);
+        $this->assertStringContainsString('FORM_CONTACT_WEBHOOK_SECRET_KEY', $missingDetail);
+        $this->assertStringNotContainsString('FORM_CONTACT_WEBHOOK_URL', $missingDetail);
     }
 
     #[Test]
@@ -234,5 +243,81 @@ final class ContactControllerTest extends TestCase
         // The form of the user, so it can try again, and the reason.
         $this->assertSame($written, $this->rendered[0][1]['form']);
         $this->assertSame('The webhook is down.', $this->rendered[0][1]['error']);
+    }
+
+    /** @return iterable<string, array{mixed}> */
+    public static function invalidProcessedData(): iterable
+    {
+        yield 'null' => [null];
+        yield 'string' => ['invalid'];
+        yield 'number' => [42];
+        yield 'object' => [new stdClass()];
+    }
+
+    #[Test]
+    #[DataProvider('invalidProcessedData')]
+    public function invalidProcessedDataReturnsTheFormWithoutSending(mixed $data): void
+    {
+        $result = $this->createStub(ProcessResultInterface::class);
+        $result->method('isValid')->willReturn(true);
+        $result->method('getProcessedData')->willReturn($data);
+        $service = $this->watchedService();
+        $form = $this->createStub(FormInterface::class);
+        $service->method('createForm')->willReturn($form);
+        $service->method('process')->willReturn($result);
+        $service->expects($this->never())->method('sendToWebhook');
+
+        $this->assertSame('RENDERED contact/index.html.twig', $this->controller($service)->submit($this->post()));
+        $this->assertSame($form, $this->rendered[0][1]['form']);
+        $this->assertSame('The processed contact form data must be an array.', $this->rendered[0][1]['error']);
+    }
+
+    /** @return iterable<string, array{bool}> */
+    public static function validationOutcomes(): iterable
+    {
+        yield 'with errors' => [true];
+        yield 'without errors' => [false];
+    }
+
+    #[Test]
+    #[DataProvider('validationOutcomes')]
+    public function anInvalidSubmissionReturnsItsFormAndTranslatedErrors(bool $hasErrors): void
+    {
+        $form = $this->createStub(FormInterface::class);
+        $result = $this->createStub(ProcessResultInterface::class);
+        $result->method('isValid')->willReturn(false);
+        $result->method('hasErrors')->willReturn($hasErrors);
+        $result->method('getForm')->willReturn($form);
+        $service = $this->watchedService();
+        $service->method('createForm')->willReturn($form);
+        $service->method('process')->willReturn($result);
+        $service->expects($this->never())->method('sendToWebhook');
+        $translator = TranslatorFactory::create('es', ['en'], [new ContactFormTranslationResourceProvider()]);
+        $controller = new ContactController($this->renderer(), $service, $translator, 'es');
+
+        $this->assertSame('RENDERED contact/index.html.twig', $controller->submit($this->post()));
+        $this->assertSame($form, $this->rendered[0][1]['form']);
+        $this->assertSame($hasErrors ? $translator->trans(
+            'There were errors in the form. Please fix them and try again.',
+            domain: 'contact-form+intl-icu',
+            locale: 'es'
+        ) : null, $this->rendered[0][1]['error']);
+    }
+
+    #[Test]
+    public function invalidProcessedDataIsTranslatedForTheVisitor(): void
+    {
+        $result = $this->createStub(ProcessResultInterface::class);
+        $result->method('isValid')->willReturn(true);
+        $result->method('getProcessedData')->willReturn(null);
+        $service = $this->watchedService();
+        $service->method('createForm')->willReturn($this->createStub(FormInterface::class));
+        $service->method('process')->willReturn($result);
+        $service->expects($this->never())->method('sendToWebhook');
+        $translator = TranslatorFactory::create('es', ['en'], [new ContactFormTranslationResourceProvider()]);
+        $controller = new ContactController($this->renderer(), $service, $translator, 'es');
+
+        $this->assertSame('RENDERED contact/index.html.twig', $controller->submit($this->post()));
+        $this->assertSame('Los datos procesados del formulario de contacto deben ser un arreglo.', $this->rendered[0][1]['error']);
     }
 }
