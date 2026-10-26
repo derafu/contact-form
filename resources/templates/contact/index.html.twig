@@ -16,7 +16,7 @@
 <div class="my-5 container">
     <div class="row">
         <div class="col-md-8">
-            {% if error %}
+            {% if error|default(null) %}
             <twig:block-alert class="mb-4" type="danger" content="{{ error }}" />
             {% endif %}
             {{ form_start(form, {'action': path('contact_submit')}) }}
