@@ -27,6 +27,7 @@ use Derafu\Csrf\SessionCsrfTokenManager;
 use Derafu\DataProcessor\ProcessorFactory;
 use Derafu\Form\Contract\Captcha\CaptchaProviderInterface;
 use Derafu\Form\Contract\Factory\FormFactoryInterface;
+use Derafu\Form\Contract\FormInterface;
 use Derafu\Form\Factory\FormFactory;
 use Derafu\Form\Factory\TranslatingFormFactory;
 use Derafu\Form\Processor\FormDataProcessor;
@@ -182,7 +183,7 @@ final class ContactServiceTest extends TestCase
     private function validData(): array
     {
         return [
-            '_token' => $this->csrf->getToken('contact'),
+            FormInterface::CSRF_FIELD => $this->csrf->getToken('contact'),
             'altcha' => $this->solvedCaptcha(),
             'name' => 'Ana Perez',
             'email' => 'ana@example.com',
@@ -306,7 +307,7 @@ final class ContactServiceTest extends TestCase
     public function aSubmissionWithoutTheTokenOfTheFormIsNotValid(): void
     {
         $data = $this->validData();
-        unset($data['_token']);
+        unset($data[FormInterface::CSRF_FIELD]);
 
         $result = $this->service()->process(data: $data);
 
@@ -347,7 +348,7 @@ final class ContactServiceTest extends TestCase
 
         $payload = $this->receivedPayload();
         $this->assertArrayNotHasKey('altcha', $payload['data']);
-        $this->assertArrayNotHasKey('_token', $payload['data']);
+        $this->assertArrayNotHasKey(FormInterface::CSRF_FIELD, $payload['data']);
         $this->assertSame('Ana Perez', $payload['data']['name']);
     }
 
@@ -374,7 +375,7 @@ final class ContactServiceTest extends TestCase
     #[Test]
     public function aSubmissionWithTheTokenOfAnotherFormIsNotValid(): void
     {
-        $result = $this->service()->process(data: ['_token' => $this->csrf->getToken('login')] + $this->validData());
+        $result = $this->service()->process(data: [FormInterface::CSRF_FIELD => $this->csrf->getToken('login')] + $this->validData());
 
         $this->assertFalse($result->isValid());
     }
