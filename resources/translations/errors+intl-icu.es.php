@@ -15,8 +15,8 @@ return [
         'La URL del webhook no está configurada para el formulario de contacto.',
     'Webhook secret key is not configured for the contact form.' =>
         'La clave secreta del webhook no está configurada para el formulario de contacto.',
-    'Parameter form.contact.source is not configured.' =>
-        'El parámetro form.contact.source no está configurado.',
+    'Parameter derafu.contact_form.source is not configured.' =>
+        'El parámetro derafu.contact_form.source no está configurado.',
     'Error sending the message: {reason}.' =>
         'Error al enviar el mensaje: {reason}.',
     'Parameter {name} must be a string or null.' =>

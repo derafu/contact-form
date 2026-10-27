@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace Derafu\ContactForm;
 
+use Derafu\ContactForm\Contract\ContactServiceInterface;
 use Derafu\ContactForm\Exception\ContactFormException;
 use Derafu\Http\Contract\ResponseInterface;
 use Derafu\Http\Enum\HttpStatus;
@@ -82,7 +83,7 @@ class ContactController
      * Constructor.
      *
      * @param RendererInterface $renderer
-     * @param ContactService $contactService
+     * @param ContactServiceInterface $contactService
      * @param TranslatorInterface|null $translator The translator to use, or
      * `null` to fall back to ICU formatting without translation.
      * @param string|null $locale The locale to translate to, or `null` to
@@ -90,7 +91,7 @@ class ContactController
      */
     public function __construct(
         private readonly RendererInterface $renderer,
-        private readonly ContactService $contactService,
+        private readonly ContactServiceInterface $contactService,
         private readonly ?TranslatorInterface $translator = null,
         private readonly ?string $locale = null,
     ) {

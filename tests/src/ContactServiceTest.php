@@ -24,7 +24,7 @@ use Derafu\ContactForm\ContactService;
 use Derafu\ContactForm\Exception\ContactFormException;
 use Derafu\ContactForm\Translation\ContactFormTranslationResourceProvider;
 use Derafu\Csrf\SessionCsrfTokenManager;
-use Derafu\DataProcessor\ProcessorFactory;
+use Derafu\DataProcessor\Contract\ProcessorInterface;
 use Derafu\Form\Contract\Captcha\CaptchaProviderInterface;
 use Derafu\Form\Contract\Factory\FormFactoryInterface;
 use Derafu\Form\Contract\FormInterface;
@@ -49,6 +49,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Client\ClientExceptionInterface;
+use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 
 /**
@@ -134,6 +137,19 @@ final class ContactServiceTest extends TestCase
         $this->captcha = new AltchaProvider('a-secret-key', 'en', cost: 10);
     }
 
+    private function processor(): ProcessorInterface
+    {
+        $container = new ContainerBuilder();
+        (new YamlFileLoader($container, new FileLocator(dirname(__DIR__, 2))))
+            ->load('vendor/derafu/data-processor/resources/config/data-processor-services.yaml');
+        $container->getDefinition(ProcessorInterface::class)->setPublic(true);
+        $container->compile();
+        $processor = $container->get(ProcessorInterface::class);
+        self::assertInstanceOf(ProcessorInterface::class, $processor);
+
+        return $processor;
+    }
+
     /**
      * @param array<string, mixed> $parameters
      */
@@ -141,11 +157,11 @@ final class ContactServiceTest extends TestCase
     {
         return new ContactService(
             $formFactory ?? new FormFactory(new TypeResolver(new TypeRegistry(new TypeProvider()))),
-            new FormDataProcessor(new FormRulesResolver(), (new ProcessorFactory())->create(), csrfTokenManager: $this->csrf, captchaProvider: $captcha ?? $this->captcha),
+            new FormDataProcessor(new FormRulesResolver(), $this->processor(), csrfTokenManager: $this->csrf, captchaProvider: $captcha ?? $this->captcha),
             new ParameterBag($parameters + [
-                'form.contact.webhook.url' => 'http://127.0.0.1:' . self::$port . '/ok',
-                'form.contact.webhook.secret_key' => self::SECRET,
-                'form.contact.source' => 'tests',
+                'derafu.contact_form.webhook.url' => 'http://127.0.0.1:' . self::$port . '/ok',
+                'derafu.contact_form.webhook.secret_key' => self::SECRET,
+                'derafu.contact_form.source' => 'tests',
                 'kernel.context' => ['URL_HOST' => 'tests.example'],
             ]),
             new Client(['timeout' => 10]),
@@ -442,7 +458,7 @@ final class ContactServiceTest extends TestCase
     #[Test]
     public function failsWhenThereIsNoSecretKeyAndSendsNothing(): void
     {
-        $service = $this->service(['form.contact.webhook.secret_key' => '']);
+        $service = $this->service(['derafu.contact_form.webhook.secret_key' => '']);
 
         try {
             $service->sendToWebhook(['name' => 'Ana']);
@@ -459,8 +475,8 @@ final class ContactServiceTest extends TestCase
     public function isEnabledUnlessTheParameterSaysOtherwise(): void
     {
         $this->assertTrue($this->service()->isEnabled());
-        $this->assertTrue($this->service(['form.contact.enabled' => true])->isEnabled());
-        $this->assertFalse($this->service(['form.contact.enabled' => false])->isEnabled());
+        $this->assertTrue($this->service(['derafu.contact_form.enabled' => true])->isEnabled());
+        $this->assertFalse($this->service(['derafu.contact_form.enabled' => false])->isEnabled());
     }
 
     #[Test]
@@ -469,15 +485,15 @@ final class ContactServiceTest extends TestCase
         $this->assertSame([], $this->service()->missingConfiguration());
         $this->assertSame(
             ['FORM_CONTACT_WEBHOOK_URL'],
-            $this->service(['form.contact.webhook.url' => ''])->missingConfiguration()
+            $this->service(['derafu.contact_form.webhook.url' => ''])->missingConfiguration()
         );
         $this->assertSame(
             ['FORM_CONTACT_WEBHOOK_SECRET_KEY'],
-            $this->service(['form.contact.webhook.secret_key' => ''])->missingConfiguration()
+            $this->service(['derafu.contact_form.webhook.secret_key' => ''])->missingConfiguration()
         );
         $this->assertSame(
             ['FORM_CONTACT_WEBHOOK_URL', 'FORM_CONTACT_WEBHOOK_SECRET_KEY'],
-            $this->service(['form.contact.webhook.url' => '', 'form.contact.webhook.secret_key' => ''])->missingConfiguration()
+            $this->service(['derafu.contact_form.webhook.url' => '', 'derafu.contact_form.webhook.secret_key' => ''])->missingConfiguration()
         );
     }
 
@@ -513,7 +529,7 @@ final class ContactServiceTest extends TestCase
     #[Test]
     public function theSourceFallsBackToTheHostOfTheKernel(): void
     {
-        $this->service(['form.contact.source' => null])->sendToWebhook(['name' => 'Ana']);
+        $this->service(['derafu.contact_form.source' => null])->sendToWebhook(['name' => 'Ana']);
 
         $this->assertSame(
             'tests.example',
@@ -524,10 +540,10 @@ final class ContactServiceTest extends TestCase
     #[Test]
     public function failsWhenThereIsNoSource(): void
     {
-        $service = $this->service(['form.contact.source' => null, 'kernel.context' => []]);
+        $service = $this->service(['derafu.contact_form.source' => null, 'kernel.context' => []]);
 
         $this->expectException(ContactFormException::class);
-        $this->expectExceptionMessage('Parameter form.contact.source is not configured.');
+        $this->expectExceptionMessage('Parameter derafu.contact_form.source is not configured.');
 
         $service->sendToWebhook(['name' => 'Ana']);
     }
@@ -535,7 +551,7 @@ final class ContactServiceTest extends TestCase
     #[Test]
     public function failsWhenThereIsNoWebhook(): void
     {
-        $service = $this->service(['form.contact.webhook.url' => '']);
+        $service = $this->service(['derafu.contact_form.webhook.url' => '']);
 
         $this->expectException(ContactFormException::class);
         $this->expectExceptionMessage('Webhook URL is not configured for the contact form.');
@@ -546,7 +562,7 @@ final class ContactServiceTest extends TestCase
     #[Test]
     public function failsWhenTheWebhookAnswersWithAnError(): void
     {
-        $service = $this->service(['form.contact.webhook.url' => 'http://127.0.0.1:' . self::$port . '/error']);
+        $service = $this->service(['derafu.contact_form.webhook.url' => 'http://127.0.0.1:' . self::$port . '/error']);
 
         try {
             $service->sendToWebhook(['name' => 'Ana']);
@@ -572,7 +588,7 @@ final class ContactServiceTest extends TestCase
         $port = (int) substr($suffix, 1);
         fclose($socket);
 
-        $service = $this->service(['form.contact.webhook.url' => 'http://127.0.0.1:' . $port . '/ok']);
+        $service = $this->service(['derafu.contact_form.webhook.url' => 'http://127.0.0.1:' . $port . '/ok']);
 
         try {
             $service->sendToWebhook(['name' => 'Ana']);
@@ -587,7 +603,7 @@ final class ContactServiceTest extends TestCase
     /** @return iterable<string, array{string, mixed}> */
     public static function invalidConfiguration(): iterable
     {
-        foreach (['form.contact.webhook.url', 'form.contact.webhook.secret_key', 'form.contact.source'] as $name) {
+        foreach (['derafu.contact_form.webhook.url', 'derafu.contact_form.webhook.secret_key', 'derafu.contact_form.source'] as $name) {
             foreach ([false, 123, 1.5, []] as $index => $value) {
                 yield $name . '-' . $index => [$name, $value];
             }
@@ -614,7 +630,7 @@ final class ContactServiceTest extends TestCase
         yield 'context is false' => [false, 'Parameter kernel.context must be an array or null.'];
         yield 'host is an array' => [['URL_HOST' => []], 'Parameter kernel.context.URL_HOST must be a string or null.'];
         yield 'host is numeric' => [['URL_HOST' => 123], 'Parameter kernel.context.URL_HOST must be a string or null.'];
-        yield 'no context' => [null, 'Parameter form.contact.source is not configured.'];
+        yield 'no context' => [null, 'Parameter derafu.contact_form.source is not configured.'];
     }
 
     #[Test]
@@ -623,13 +639,13 @@ final class ContactServiceTest extends TestCase
     {
         $this->expectException(ContactFormException::class);
         $this->expectExceptionMessage($message);
-        $this->service(['form.contact.source' => null, 'kernel.context' => $context])->sendToWebhook([]);
+        $this->service(['derafu.contact_form.source' => null, 'kernel.context' => $context])->sendToWebhook([]);
     }
 
     #[Test]
     public function anEmptyExplicitSourceDoesNotUseTheFallback(): void
     {
-        $this->service(['form.contact.source' => '', 'kernel.context' => false])->sendToWebhook([]);
+        $this->service(['derafu.contact_form.source' => '', 'kernel.context' => false])->sendToWebhook([]);
         $this->assertSame('', $this->receivedPayload()['meta']['source']);
     }
 
@@ -638,7 +654,7 @@ final class ContactServiceTest extends TestCase
     {
         $this->assertSame(
             ['FORM_CONTACT_WEBHOOK_URL', 'FORM_CONTACT_WEBHOOK_SECRET_KEY'],
-            $this->service(['form.contact.webhook.url' => null, 'form.contact.webhook.secret_key' => null])->missingConfiguration()
+            $this->service(['derafu.contact_form.webhook.url' => null, 'derafu.contact_form.webhook.secret_key' => null])->missingConfiguration()
         );
     }
 
@@ -684,7 +700,7 @@ final class ContactServiceTest extends TestCase
     public function acceptsJsonObjectsAndLists(string $path, array $expected): void
     {
         $this->assertSame($expected, $this->service([
-            'form.contact.webhook.url' => 'http://127.0.0.1:' . self::$port . '/' . $path,
+            'derafu.contact_form.webhook.url' => 'http://127.0.0.1:' . self::$port . '/' . $path,
         ])->sendToWebhook([]));
     }
 
@@ -706,7 +722,7 @@ final class ContactServiceTest extends TestCase
     {
         try {
             $this->service([
-                'form.contact.webhook.url' => 'http://127.0.0.1:' . self::$port . '/' . $path,
+                'derafu.contact_form.webhook.url' => 'http://127.0.0.1:' . self::$port . '/' . $path,
             ])->sendToWebhook([]);
             $this->fail('An invalid webhook response must fail.');
         } catch (ContactFormException $e) {

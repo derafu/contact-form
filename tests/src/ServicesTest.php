@@ -14,6 +14,7 @@ namespace Derafu\TestsContactForm;
 
 use Derafu\ContactForm\ContactController;
 use Derafu\ContactForm\ContactService;
+use Derafu\ContactForm\Contract\ContactServiceInterface;
 use Derafu\ContactForm\Exception\ContactFormException;
 use Derafu\ContactForm\Translation\ContactFormTranslationResourceProvider;
 use Derafu\Http\Contract\ResponseInterface;
@@ -53,7 +54,7 @@ final class ServicesTest extends TestCase
     #[Test]
     public function theFormIsEnabledByDefault(): void
     {
-        $this->assertTrue($this->parameter('form.contact.enabled'));
+        $this->assertTrue($this->parameter('derafu.contact_form.enabled'));
     }
 
     /**
@@ -75,14 +76,14 @@ final class ServicesTest extends TestCase
     {
         putenv('FORM_CONTACT_ENABLED=' . $value);
 
-        $this->assertSame($expected, $this->parameter('form.contact.enabled'));
+        $this->assertSame($expected, $this->parameter('derafu.contact_form.enabled'));
     }
 
     #[Test]
     public function theWebhookIsNotSetByDefault(): void
     {
-        $this->assertEmpty($this->parameter('form.contact.webhook.url'));
-        $this->assertEmpty($this->parameter('form.contact.webhook.secret_key'));
+        $this->assertEmpty($this->parameter('derafu.contact_form.webhook.url'));
+        $this->assertEmpty($this->parameter('derafu.contact_form.webhook.secret_key'));
     }
 
     #[Test]
@@ -91,18 +92,22 @@ final class ServicesTest extends TestCase
         putenv('FORM_CONTACT_WEBHOOK_URL=https://hooks.example.com/contact');
         putenv('FORM_CONTACT_WEBHOOK_SECRET_KEY=the-secret');
 
-        $this->assertSame('https://hooks.example.com/contact', $this->parameter('form.contact.webhook.url'));
-        $this->assertSame('the-secret', $this->parameter('form.contact.webhook.secret_key'));
+        $this->assertSame('https://hooks.example.com/contact', $this->parameter('derafu.contact_form.webhook.url'));
+        $this->assertSame('the-secret', $this->parameter('derafu.contact_form.webhook.secret_key'));
     }
 
     #[Test]
     public function allPackageServicesAreConstructedFromTheCompleteConfiguration(): void
     {
         $container = ContactApplication::create();
-        foreach ([ContactController::class, ContactService::class, ContactFormTranslationResourceProvider::class] as $class) {
-            $this->assertInstanceOf($class, $container->get($class));
+        foreach ([
+            ContactController::class => ContactController::class,
+            ContactServiceInterface::class => ContactService::class,
+            ContactFormTranslationResourceProvider::class => ContactFormTranslationResourceProvider::class,
+        ] as $id => $class) {
+            $this->assertInstanceOf($class, $container->get($id));
         }
-        $service = $container->get(ContactService::class);
+        $service = $container->get(ContactServiceInterface::class);
         $this->assertInstanceOf(ContactService::class, $service);
         $this->assertTrue($service->isEnabled());
         $this->assertSame(['FORM_CONTACT_WEBHOOK_URL', 'FORM_CONTACT_WEBHOOK_SECRET_KEY'], $service->missingConfiguration());
@@ -139,7 +144,7 @@ final class ServicesTest extends TestCase
         $resources = $container->get(ContactFormTranslationResourceProvider::class);
         $this->assertInstanceOf(ContactFormTranslationResourceProvider::class, $resources);
         $this->assertNotEmpty([...$resources->getDirectories()]);
-        $service = $container->get(ContactService::class);
+        $service = $container->get(ContactServiceInterface::class);
         $this->assertInstanceOf(ContactService::class, $service);
         try {
             $service->sendToWebhook([]);

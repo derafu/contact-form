@@ -1,3 +1,10 @@
+# Reuse the shared Form, Renderer and Twig services. Each package contributes
+# its own templates, components and extensions through their provider tags.
+imports:
+    - { resource: '../../../data-processor/resources/config/data-processor-services.yaml' }
+    - { resource: '../../../form/resources/config/form-services.yaml' }
+    - { resource: '../../../twig-components/resources/config/twig-components-twig-services.yaml' }
+
 parameters:
 
     # The contact form is on by default. FORM_CONTACT_ENABLED=false turns it off
@@ -6,14 +13,14 @@ parameters:
     # FORM_CONTACT_WEBHOOK_URL and FORM_CONTACT_WEBHOOK_SECRET_KEY, and without
     # them the pages say the same, with a 503.
     env(FORM_CONTACT_ENABLED): 'true'
-    form.contact.enabled: '%env(bool:FORM_CONTACT_ENABLED)%'
+    derafu.contact_form.enabled: '%env(bool:FORM_CONTACT_ENABLED)%'
 
     # Form configuration.
-    form.contact.source: '%env(default::string:FORM_CONTACT_SOURCE)%'
+    derafu.contact_form.source: '%env(default::string:FORM_CONTACT_SOURCE)%'
 
     # Webhook configuration.
-    form.contact.webhook.url: '%env(default::string:FORM_CONTACT_WEBHOOK_URL)%'
-    form.contact.webhook.secret_key: '%env(default::string:FORM_CONTACT_WEBHOOK_SECRET_KEY)%'
+    derafu.contact_form.webhook.url: '%env(default::string:FORM_CONTACT_WEBHOOK_URL)%'
+    derafu.contact_form.webhook.secret_key: '%env(default::string:FORM_CONTACT_WEBHOOK_SECRET_KEY)%'
 
 services:
 
@@ -24,7 +31,11 @@ services:
 
     Derafu\ContactForm\ContactController: ~
 
-    Derafu\ContactForm\ContactService: ~
+    Derafu\ContactForm\Contract\ContactServiceInterface:
+        class: Derafu\ContactForm\ContactService
+
+    Derafu\ContactForm\Provider\ContactFormTemplatePathProvider:
+        tags: ['derafu_twig.template_path_provider']
 
     # Feeds resources/translations into the consuming app's Translator (the
     # app must pass $resourceProviders: !tagged_iterator

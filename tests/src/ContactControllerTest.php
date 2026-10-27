@@ -13,7 +13,7 @@ declare(strict_types=1);
 namespace Derafu\TestsContactForm;
 
 use Derafu\ContactForm\ContactController;
-use Derafu\ContactForm\ContactService;
+use Derafu\ContactForm\Contract\ContactServiceInterface;
 use Derafu\ContactForm\Exception\ContactFormException;
 use Derafu\ContactForm\Translation\ContactFormTranslationResourceProvider;
 use Derafu\Form\Contract\FormInterface;
@@ -75,9 +75,9 @@ final class ContactControllerTest extends TestCase
      *
      * @param list<string> $missing
      */
-    private function service(bool $enabled = true, array $missing = [], bool $debug = false): ContactService&Stub
+    private function service(bool $enabled = true, array $missing = [], bool $debug = false): ContactServiceInterface&Stub
     {
-        return $this->answer($this->createStub(ContactService::class), $enabled, $missing, $debug);
+        return $this->answer($this->createStub(ContactServiceInterface::class), $enabled, $missing, $debug);
     }
 
     /**
@@ -85,9 +85,9 @@ final class ContactControllerTest extends TestCase
      *
      * @param list<string> $missing
      */
-    private function watchedService(bool $enabled = true, array $missing = [], bool $debug = false): ContactService&MockObject
+    private function watchedService(bool $enabled = true, array $missing = [], bool $debug = false): ContactServiceInterface&MockObject
     {
-        return $this->answer($this->createMock(ContactService::class), $enabled, $missing, $debug);
+        return $this->answer($this->createMock(ContactServiceInterface::class), $enabled, $missing, $debug);
     }
 
     /**
@@ -105,7 +105,7 @@ final class ContactControllerTest extends TestCase
         return $service;
     }
 
-    private function controller(ContactService $service): ContactController
+    private function controller(ContactServiceInterface $service): ContactController
     {
         return new ContactController($this->renderer(), $service);
     }

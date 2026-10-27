@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace Derafu\ContactForm;
 
+use Derafu\ContactForm\Contract\ContactServiceInterface;
 use Derafu\ContactForm\Exception\ContactFormException;
 use Derafu\Form\Contract\Factory\FormFactoryInterface;
 use Derafu\Form\Contract\FormInterface;
@@ -31,7 +32,7 @@ use Symfony\Component\Yaml\Yaml;
  *
  * Handles contact form configuration, processing, and webhook communication.
  */
-class ContactService
+class ContactService implements ContactServiceInterface
 {
     /**
      * Default form definition for the contact form.
@@ -76,9 +77,9 @@ class ContactService
         private readonly StreamFactoryInterface $streamFactory,
     ) {
         // Load the webhook configuration.
-        $this->webhookUrl = $this->readOptionalString('form.contact.webhook.url');
+        $this->webhookUrl = $this->readOptionalString('derafu.contact_form.webhook.url');
         $this->webhookSecretKey = $this->readOptionalString(
-            'form.contact.webhook.secret_key'
+            'derafu.contact_form.webhook.secret_key'
         );
     }
 
@@ -89,8 +90,8 @@ class ContactService
      */
     public function isEnabled(): bool
     {
-        return !$this->parameterBag->has('form.contact.enabled')
-            || (bool) $this->parameterBag->get('form.contact.enabled')
+        return !$this->parameterBag->has('derafu.contact_form.enabled')
+            || (bool) $this->parameterBag->get('derafu.contact_form.enabled')
         ;
     }
 
@@ -210,7 +211,7 @@ class ContactService
      */
     private function sendMessage(string $webhookUrl, array $data, array $meta = []): array
     {
-        $source = $this->readOptionalString('form.contact.source');
+        $source = $this->readOptionalString('derafu.contact_form.source');
         if ($source === null) {
             $context = $this->parameterBag->get('kernel.context');
             if ($context !== null && !is_array($context)) {
@@ -222,7 +223,7 @@ class ContactService
             }
         }
         if ($source === null) {
-            throw new ContactFormException('Parameter form.contact.source is not configured.');
+            throw new ContactFormException('Parameter derafu.contact_form.source is not configured.');
         }
 
         // Build the payload.

@@ -1,0 +1,51 @@
+imports:
+    - { resource: '../../../resources/config/contact-form-services.yaml' }
+    - { resource: '../../../vendor/derafu/csrf/resources/config/csrf-services.yaml' }
+
+parameters:
+    derafu.twig.options: { extra: false }
+
+services:
+    Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface:
+        class: Symfony\Component\DependencyInjection\ParameterBag\ContainerBag
+        arguments:
+            $container: '@service_container'
+
+    Psr\Http\Client\ClientInterface:
+        class: GuzzleHttp\Client
+        arguments:
+            $config: { timeout: 5 }
+
+    Psr\Http\Message\RequestFactoryInterface:
+        class: GuzzleHttp\Psr7\HttpFactory
+
+    Psr\Http\Message\StreamFactoryInterface:
+        alias: Psr\Http\Message\RequestFactoryInterface
+
+    Derafu\Form\Contract\Captcha\CaptchaProviderInterface:
+        class: Derafu\Captcha\Provider\DisabledCaptchaProvider
+
+    Symfony\Contracts\Translation\TranslatorInterface:
+        class: Symfony\Component\Translation\Translator
+        factory: ['Derafu\Translation\TranslatorFactory', 'create']
+        arguments:
+            $defaultLocale: es
+            $fallbackLocales: [en]
+            $resourceProviders: !tagged_iterator derafu_translation.resource_provider
+        public: true
+
+    Derafu\Routing\Contract\RouterInterface:
+        class: Derafu\Routing\Router
+        arguments:
+            $routes:
+                homepage: { path: '/', handler: app.home }
+                contact_submit: { path: '/contact/submit', handler: app.contact }
+
+    Derafu\TestsContactForm\Fixture\ApplicationTemplatePathProvider:
+        tags:
+            - { name: derafu_twig.template_path_provider, priority: 100 }
+
+    Derafu\TestsContactForm\Fixture\ApplicationExtensionProvider:
+        arguments:
+            $router: '@Derafu\Routing\Contract\RouterInterface'
+        tags: ['derafu_twig.extension_provider']
