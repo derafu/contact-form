@@ -13,7 +13,7 @@ declare(strict_types=1);
 namespace Derafu\TestsContactForm\Fixture;
 
 use Composer\InstalledVersions;
-use Derafu\Csrf\SessionCsrfTokenManager;
+use Derafu\Csrf\Contract\SessionCsrfTokenManagerInterface;
 use Derafu\Form\Contract\Renderer\FormRendererInterface;
 use Derafu\Renderer\Contract\RendererInterface;
 use Derafu\Twig\Contract\TwigServiceInterface;
@@ -38,12 +38,12 @@ final class ContactApplication
             (InstalledVersions::getInstallPath('derafu/renderer')
                 ?? throw new LogicException('derafu/renderer must be installed for these tests.')) . '/resources/config',
         ])))->load('application.yaml');
-        foreach ([SessionCsrfTokenManager::class, TwigServiceInterface::class, RendererInterface::class, FormRendererInterface::class] as $id) {
+        foreach ([SessionCsrfTokenManagerInterface::class, TwigServiceInterface::class, RendererInterface::class, FormRendererInterface::class] as $id) {
             $container->getDefinition($id)->setPublic(true);
         }
         $container->compile(true);
-        $csrf = $container->get(SessionCsrfTokenManager::class);
-        if (!$csrf instanceof SessionCsrfTokenManager) {
+        $csrf = $container->get(SessionCsrfTokenManagerInterface::class);
+        if (!$csrf instanceof SessionCsrfTokenManagerInterface) {
             throw new LogicException('The configured CSRF manager has an unexpected type.');
         }
         $csrf->useSession(new Session([]));

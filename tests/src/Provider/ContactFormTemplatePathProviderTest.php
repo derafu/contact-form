@@ -14,7 +14,7 @@ namespace Derafu\TestsContactForm\Provider;
 
 use Derafu\ContactForm\ContactController;
 use Derafu\ContactForm\Provider\ContactFormTemplatePathProvider;
-use Derafu\Csrf\SessionCsrfTokenManager;
+use Derafu\Csrf\Contract\SessionCsrfTokenManagerInterface;
 use Derafu\Form\Contract\Renderer\FormRendererInterface;
 use Derafu\Http\Request;
 use Derafu\Renderer\Contract\RendererInterface;
@@ -85,8 +85,8 @@ final class ContactFormTemplatePathProviderTest extends TestCase
         }
         $compiled = eval($code . "\nreturn new " . $class . '();');
         self::assertInstanceOf(ContainerInterface::class, $compiled);
-        $csrf = $compiled->get(SessionCsrfTokenManager::class);
-        self::assertInstanceOf(SessionCsrfTokenManager::class, $csrf);
+        $csrf = $compiled->get(SessionCsrfTokenManagerInterface::class);
+        self::assertInstanceOf(SessionCsrfTokenManagerInterface::class, $csrf);
         $csrf->useSession(new Session([]));
         $this->assertSharedRendering($compiled);
     }
